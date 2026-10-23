@@ -203,7 +203,13 @@ const PlaylistItemsCard = ({
           <p className="m-0 min-w-0 text-lg">
             {t.playlist.totalItems} <strong className="font-bold tabular-nums">{items.length}</strong>
           </p>
-          {canSave ? (
+          {!busy && effectiveSelected.length > 0 ? (
+            // Ticking rows turns the main button into "download these": no scrolling to the end of a long list.
+            <button type="button" onClick={() => downloadRows(effectiveSelected)} className={ctaLight}>
+              <Download className="h-6 w-6" aria-hidden />
+              {t.playlist.downloadItemsSelected} ({effectiveSelected.length})
+            </button>
+          ) : canSave ? (
             renderSaveButton()
           ) : (
             <button
@@ -294,16 +300,6 @@ const PlaylistItemsCard = ({
             );
           })}
         </ul>
-
-        {/* Selected download bulk button */}
-        {!busy && effectiveSelected.length > 0 && (
-          <div>
-            <button type="button" onClick={() => downloadRows(effectiveSelected)} className={ctaGhost}>
-              <Download className="h-6 w-6" aria-hidden />
-              {t.playlist.downloadItemsSelected}
-            </button>
-          </div>
-        )}
 
         {/* Status and Action Buttons (Retry / Open Folder) */}
         {!busy && anyDone && (

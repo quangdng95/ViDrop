@@ -13,6 +13,11 @@ keep both updated together when shipping a user-visible change.
   `video_versions`/`carousel_media`) into the public page for anyone, so `backend/threads.py` reads that page first
   with curl_cffi (`fetch_threads_page`, no cookies, no Keychain prompt, works on the cloud VM) and only falls back to
   the user's login through the private API for a post the page does not show (`fetch_threads_post`).
+- [x] A Threads post with several pictures listed fine but every row failed on Download: the batch routes
+  (`backend/app.py`, `remote_web/routes/media.py`) did not know Threads and gave the link to yt-dlp (no Threads
+  extractor). Threads is now resolved once and fetched by position like an Instagram carousel (9 of 9 saved live).
+- [x] Ticking rows turns the main button at the top of the list ("Download All") into "Download Items Selected (N)";
+  the second button at the end of the list is gone, so nobody scrolls a long list to start the download.
 
 ## 2026-10-16 · ViDrop 2.0.4: Pinterest boards and pins
 

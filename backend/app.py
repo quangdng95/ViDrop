@@ -820,6 +820,8 @@ def start_batch_download():
     is_rednote_media = cls.platform == "RedNote"
     # A Pinterest "playlist" is always a board: every pin resolved once, then fetched by position.
     is_pinterest_board = cls.platform == "Pinterest"
+    # A Threads "playlist" is a post with several pictures/videos: resolved once, then fetched by position.
+    is_threads_post = cls.kind == classify.LinkKind.THREADS_POST
     # A multi-photo tweet: yt-dlp cannot list it, X's embed endpoint can. A tweet with videos has no photos
     # there, so x_media stays None and the normal yt-dlp path is used.
     x_media = xposts.try_photos(url) if cls.platform == "X" else None
@@ -862,7 +864,7 @@ def start_batch_download():
                 recompute_overall()
 
             try:
-                if is_ig_carousel or is_tiktok_photo or is_linkedin_document or is_rednote_media or is_x_photo or is_pinterest_board:
+                if is_ig_carousel or is_tiktok_photo or is_linkedin_document or is_rednote_media or is_x_photo or is_pinterest_board or is_threads_post:
                     idx = item.get("entry_index") or (i + 1)
                     node = media_holder["media"]["items"][idx - 1]
                     cdn_url = node.get("url")
@@ -917,6 +919,8 @@ def start_batch_download():
                 media_holder["media"] = linkedin.fetch_linkedin_image_post(url)
             elif is_x_photo:
                 media_holder["media"] = x_media
+            elif is_threads_post:
+                media_holder["media"] = threads.fetch_threads_post(url)
             elif is_pinterest_board:
                 media_holder["media"] = pinterest.fetch_pinterest_media(url, limit=extraction.effective_item_limit(cls))
             elif is_rednote_media:

@@ -224,3 +224,35 @@ describe("PlaylistItemsCard link shared from one slide", () => {
     expect(screen.queryAllByText(/Download Items Selected/i)).toHaveLength(0);
   });
 });
+
+describe("PlaylistItemsCard main button", () => {
+  it("turns Download All into Download Items Selected (with a count) as soon as rows are ticked, at the top", async () => {
+    const onDownloadItems = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <LanguageProvider>
+        <PlaylistItemsCard
+          title="Post"
+          platform="Threads"
+          items={[makeItem(1), makeItem(2), makeItem(3)]}
+          busy={false}
+          rowStatus={{}}
+          batchSummary={null}
+          quality="Best"
+          onDownloadItems={onDownloadItems}
+        />
+      </LanguageProvider>
+    );
+    expect(screen.getByRole("button", { name: /Download All/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("checkbox", { name: "Select all" }));
+    await user.click(screen.getAllByRole("checkbox")[2]); // untick row 2
+    expect(screen.queryByRole("button", { name: /Download All/i })).not.toBeInTheDocument();
+    const main = screen.getByRole("button", { name: /Download Items Selected \(2\)/i });
+    // It sits above the list of rows, not after it.
+    expect(main.compareDocumentPosition(screen.getByRole("list")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    await user.click(main);
+    expect(onDownloadItems).toHaveBeenCalledWith([0, 2], "Best");
+  });
+});

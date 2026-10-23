@@ -589,6 +589,8 @@ const en: Translations = {
         title: "Threads works again",
         items: [
           "Threads links work again, for videos, pictures and posts with several pictures. ViDrop now reads the public post, so you no longer need to be signed in to Threads, and it works on the web version too.",
+          "Posts with several pictures download again: every row used to show Failed.",
+          "When you tick rows, the main button at the top changes to \"Download Items Selected\" with a count, so you no longer scroll to the end of the list to start.",
         ],
       },
       {
@@ -1158,6 +1160,8 @@ const vi: Translations = {
         title: "Threads dùng lại được",
         items: [
           "Link Threads dùng lại được, cho video, ảnh và bài có nhiều ảnh. ViDrop giờ đọc bài công khai nên không cần đăng nhập Threads nữa, và bản web cũng dùng được.",
+          "Bài có nhiều ảnh tải lại được: trước đó mọi dòng đều báo Thất bại.",
+          "Khi tick các dòng, nút chính ở trên cùng đổi thành \"Tải các mục đã chọn\" kèm số lượng, nên không phải kéo xuống cuối danh sách mới bắt đầu tải.",
         ],
       },
       {

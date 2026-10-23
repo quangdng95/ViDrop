@@ -673,3 +673,28 @@ def test_check_threads_public_post_needs_no_login(client, monkeypatch):
     assert resp.status_code == 200
     body = resp.get_json()
     assert body["platform"] == "Threads" and body["kind"] == "video"
+
+
+def test_batch_download_threads_carousel_resolves_once_and_downloads_by_position(client, monkeypatch, tmp_path):
+    # 2026-10-23: a Threads post with several pictures listed fine but every row "failed": the batch route did not
+    # know Threads and handed the link to yt-dlp, which has no Threads extractor.
+    monkeypatch.setattr("remote_web.routes.media.ffmpeg_locator.resolve_ffmpeg_binary", lambda: "/fake/ffmpeg")
+    monkeypatch.setattr(config, "TEMP_ROOT", str(tmp_path))
+    media = {"title": "Post", "items": [{"kind": "image", "url": f"https://cdn/{n}.jpg", "thumbnail": None} for n in (1, 2, 3)]}
+    resolved = []
+    monkeypatch.setattr(threads_module, "fetch_threads_post", lambda url, get_candidates=None: resolved.append(url) or media)
+    got = []
+
+    def fake_direct(cdn_url, output_path, job_id, on_progress=None):
+        got.append(cdn_url)
+        with open(output_path, "wb") as f:
+            f.write(b"\xff\xd8\xff\xe0x")
+        if on_progress:
+            on_progress(100)
+
+    monkeypatch.setattr(download_module, "download_direct_url", fake_direct)
+    resp = client.post("/api/download-batch", json={"url": "https://www.threads.com/@u/post/abc123", "quality": "Best", "items": [{"title": f"Post ({n})", "entry_index": n} for n in (1, 3)]})
+    assert resp.status_code == 200
+    job = _wait_for_job(resp.get_json()["job_id"])
+    assert job["status"] == "done" and job["saved_count"] == 2
+    assert sorted(got) == ["https://cdn/1.jpg", "https://cdn/3.jpg"] and len(resolved) == 1
