@@ -585,6 +585,13 @@ const en: Translations = {
   changelog: {
     releases: [
       {
+        date: "2026-10-23",
+        title: "Threads works again",
+        items: [
+          "Threads links work again, for videos, pictures and posts with several pictures. ViDrop now reads the public post, so you no longer need to be signed in to Threads, and it works on the web version too.",
+        ],
+      },
+      {
         date: "2026-10-16",
         title: "ViDrop 2.0.4: Pinterest boards and pins",
         items: [
@@ -1146,6 +1153,13 @@ const vi: Translations = {
   },
   changelog: {
     releases: [
+      {
+        date: "23-10-2026",
+        title: "Threads dùng lại được",
+        items: [
+          "Link Threads dùng lại được, cho video, ảnh và bài có nhiều ảnh. ViDrop giờ đọc bài công khai nên không cần đăng nhập Threads nữa, và bản web cũng dùng được.",
+        ],
+      },
       {
         date: "16-10-2026",
         title: "ViDrop 2.0.4: Bảng và ghim Pinterest",

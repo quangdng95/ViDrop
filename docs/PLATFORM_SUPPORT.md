@@ -66,8 +66,8 @@ link check, verified with `ffprobe` (picture, sound, size) and then deleted.
 
 | Content | Status | Notes |
 |---|---|---|
-| Video post | 🔑 Works, needs sign-in | |
-| Image post | 🔑 Works, needs sign-in | |
+| Video post | ✅ Works | Read from the public page, no sign-in (checked 2026-10-23). The sign-in is only a fallback for a post the page does not show. |
+| Image post | ✅ Works | Same. |
 | `threads.com/share/…` link | ➖ Not tested | No sample link. Covered by unit tests only. |
 
 ## Pinterest

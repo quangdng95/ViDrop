@@ -5,6 +5,15 @@ is the raw, engineering-facing history; the app itself also has an in-app **Chan
 (`frontend/src/pages/ChangelogPage.tsx`, header nav) with the same entries written for end users —
 keep both updated together when shipping a user-visible change.
 
+## 2026-10-23 · Threads works without a login again
+
+- [x] Threads started sending even a valid browser session to the login page when the private API
+  (`/api/v1/media/<id>/info/`) is called, so every Threads link failed ("a browser signed in to Threads is required"),
+  on the Mac and on the web. `threads.com` now server-renders a post's media (the same JSON, `image_versions2`/
+  `video_versions`/`carousel_media`) into the public page for anyone, so `backend/threads.py` reads that page first
+  with curl_cffi (`fetch_threads_page`, no cookies, no Keychain prompt, works on the cloud VM) and only falls back to
+  the user's login through the private API for a post the page does not show (`fetch_threads_post`).
+
 ## 2026-10-16 · ViDrop 2.0.4: Pinterest boards and pins
 
 - [x] Paste a Pinterest board link (`pinterest.com/<user>/<board>/`) and every pin is listed for download, like a

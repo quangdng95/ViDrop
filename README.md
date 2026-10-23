@@ -54,7 +54,7 @@ platforms creators, designers, and researchers actually pull reference material 
 | Instagram | Reel, photo post, carousel | Needs a login in your browser. Profile / Reels lists are often refused by Instagram |
 | Facebook | Video, Reel, `share/r/` links | |
 | X (Twitter) | Video post | |
-| Threads | Video post, image post | Needs a login in your browser |
+| Threads | Video post, image post | No login needed for public posts |
 | Pinterest | Board (every pin, images and videos), single pin | Public boards need no login. A private board needs the Mac app and a Pinterest login in your browser |
 | LinkedIn | Video post, image post, slide-deck (PDF) — every page as an image | `lnkd.in` links work. No login needed |
 | RedNote (Xiaohongshu) | Video note, image note | Needs a login in your browser. Share links expire, so copy a fresh one |

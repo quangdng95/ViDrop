@@ -13,8 +13,11 @@ backend.cookies' browser_cookie3 plumbing.
 """
 
 import json
+import re
 import urllib.error
 import urllib.request
+
+from curl_cffi import requests as curl_requests
 
 from backend import classify, config, cookies
 
@@ -186,3 +189,69 @@ def fetch_threads_media_any(url, cookiefiles):
     if last_error:
         raise last_error
     raise ThreadsAuthError("Threads requires a logged-in session (cookies).")
+
+
+_PAGE_BLOB = re.compile(r'<script type="application/json"[^>]*data-sjs[^>]*>(.*?)</script>', re.S)
+
+
+def _find_post_node(data, shortcode):
+    if isinstance(data, dict):
+        if data.get("code") == shortcode and ("image_versions2" in data or "video_versions" in data or "carousel_media" in data):
+            return data
+        children = data.values()
+    elif isinstance(data, list):
+        children = data
+    else:
+        return None
+    for child in children:
+        found = _find_post_node(child, shortcode)
+        if found:
+            return found
+    return None
+
+
+def fetch_threads_page(url):
+    """Reads a post from its public page, no login: since 2026-10 threads.com server-renders the post's media
+    (the same JSON as the private API) into the page for anyone, while the private API now sends even a valid
+    browser session to the login page. Same return shape as fetch_threads_media."""
+    shortcode = classify.threads_shortcode_from_url(url)
+    if not shortcode:
+        raise ThreadsAuthError("Not a Threads post URL.")
+    html = None
+    for _ in range(2):
+        try:
+            response = curl_requests.Session(impersonate="chrome").get(
+                f"https://www.threads.com/post/{shortcode}", timeout=30, allow_redirects=True,
+            )
+            if response.status_code == 200:
+                html = response.text
+                break
+        except Exception:
+            continue
+    if not html or shortcode not in html:
+        raise ThreadsAuthError("Threads did not show this post without a login.")
+    for blob in _PAGE_BLOB.findall(html):
+        if shortcode not in blob:
+            continue
+        try:
+            media = _find_post_node(json.loads(blob), shortcode)
+        except ValueError:
+            continue
+        if media:
+            nodes = media.get("carousel_media") or [media]
+            return {"title": _threads_title(media, shortcode), "items": [_threads_item(node) for node in nodes]}
+    raise ThreadsAuthError("Threads did not show this post without a login.")
+
+
+def fetch_threads_post(url, get_candidates=None):
+    """The public page first (no cookies read, no Keychain prompt, works on the cloud too); only when it does not
+    show the post (private or restricted account) is the user's login tried through the private API."""
+    try:
+        return fetch_threads_page(url)
+    except ThreadsAuthError:
+        pass
+    candidates = (get_candidates or threads_cookiefile_candidates)()
+    try:
+        return fetch_threads_media_any(url, candidates)
+    finally:
+        cookies._cleanup_temp_cookiefiles(candidates)

@@ -45,3 +45,20 @@ def no_browser_cookie_scan(monkeypatch):
     original = cookies_module.cookiefiles_from_browsers
     monkeypatch.setattr(cookies_module, "cookiefiles_from_browsers", lambda domain="instagram.com": [])
     return original
+
+
+@pytest.fixture(autouse=True)
+def no_threads_page_fetch(monkeypatch):
+    # backend.threads reads a post's public page first (network). A test must never reach threads.com, so by
+    # default that page "does not show the post" and the login path (stubbed per test) runs, as it did before the
+    # page path existed. Tests of the page reader itself replace the session again.
+    from backend import threads as threads_module
+
+    class NoNetwork:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def get(self, *args, **kwargs):
+            raise OSError("no network in tests")
+
+    monkeypatch.setattr(threads_module.curl_requests, "Session", NoNetwork)

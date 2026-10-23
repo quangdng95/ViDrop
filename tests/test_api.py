@@ -2165,3 +2165,19 @@ def test_batch_download_pinterest_resolves_once_and_downloads_by_position(client
         time.sleep(0.05)
     assert jobs_module.jobs[job_id]["status"] == "done"
     assert sorted(got) == ["https://i.pinimg.com/originals/1.png", "https://i.pinimg.com/originals/3.png"] and len(resolved) == 1
+
+
+def test_check_threads_public_post_needs_no_login(client, monkeypatch):
+    # 2026-10: threads.com shows a post's media in its public page; no browser session is read at all.
+    def no_cookies():
+        raise AssertionError("must not read cookies when the public page works")
+
+    monkeypatch.setattr(threads_module, "threads_cookiefile_candidates", no_cookies)
+    monkeypatch.setattr(
+        threads_module, "fetch_threads_page",
+        lambda url: {"title": "A post", "items": [{"kind": "video", "url": "http://cdn/v.mp4", "thumbnail": None}]},
+    )
+    resp = client.post("/api/check", json={"url": "https://www.threads.com/@someone/post/abc123"})
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert body["platform"] == "Threads" and body["kind"] == "video"

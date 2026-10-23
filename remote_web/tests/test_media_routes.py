@@ -10,6 +10,7 @@ from backend import cookies as backend_cookies
 from backend import extraction as extraction_module
 from backend import instagram as instagram_module
 from backend import pinterest as pinterest_module
+from backend import threads as threads_module
 from remote_web import config
 from remote_web.app import app as remote_app
 
@@ -656,3 +657,19 @@ def test_batch_download_pinterest_resolves_once_and_zips_by_position(client, mon
     assert sorted(got) == ["https://i.pinimg.com/originals/1.png", "https://i.pinimg.com/originals/3.png"]
     with zipfile.ZipFile(job["filepath"]) as zf:
         assert len(zf.namelist()) == 2
+
+
+def test_check_threads_public_post_needs_no_login(client, monkeypatch):
+    # 2026-10: threads.com shows a post's media in its public page; no browser session is read at all.
+    def no_cookies():
+        raise AssertionError("must not read cookies when the public page works")
+
+    monkeypatch.setattr(threads_module, "threads_cookiefile_candidates", no_cookies)
+    monkeypatch.setattr(
+        threads_module, "fetch_threads_page",
+        lambda url: {"title": "A post", "items": [{"kind": "video", "url": "http://cdn/v.mp4", "thumbnail": None}]},
+    )
+    resp = client.post("/api/check", json={"url": "https://www.threads.com/@someone/post/abc123"})
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert body["platform"] == "Threads" and body["kind"] == "video"

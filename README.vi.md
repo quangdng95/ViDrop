@@ -56,7 +56,7 @@ mà các nhà sáng tạo, designer, và nhà nghiên cứu thực sự lấy t�
 | Instagram | Reel, bài ảnh, carousel | Cần đăng nhập trên trình duyệt. Danh sách profile / Reels thường bị Instagram từ chối |
 | Facebook | Video, Reel, link `share/r/` | |
 | X (Twitter) | Bài video | |
-| Threads | Bài video, bài ảnh | Cần đăng nhập trên trình duyệt |
+| Threads | Bài video, bài ảnh | Bài công khai không cần đăng nhập |
 | Pinterest | Bảng (mọi ghim, ảnh và video), một ghim | Bảng công khai không cần đăng nhập. Bảng riêng tư cần app Mac và đăng nhập Pinterest trên trình duyệt |
 | LinkedIn | Bài video, bài ảnh, slide (PDF) — mỗi trang là một ảnh | Link `lnkd.in` dùng được. Không cần đăng nhập |
 | RedNote (Xiaohongshu) | Bài video, bài ảnh | Cần đăng nhập trên trình duyệt. Link chia sẻ hết hạn nên hãy copy link mới |

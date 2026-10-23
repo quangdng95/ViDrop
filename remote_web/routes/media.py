@@ -75,19 +75,15 @@ def check_link():
             cookies._cleanup_temp_cookiefiles(candidates)
 
     if cls.kind == classify.LinkKind.THREADS_POST:
-        candidates = threads.threads_cookiefile_candidates()
-        last_error = None
-        if candidates:
-            try:
-                media = threads.fetch_threads_media_any(url, candidates)
-                return jsonify(instagram.instagram_check_response(url, media))
-            except Exception as e:
-                last_error = e
-            finally:
-                cookies._cleanup_temp_cookiefiles(candidates)
-        if not candidates or isinstance(last_error, threads.ThreadsAuthError):
+        # The public page first (no login), the user's session only when the post is not shown to everyone.
+        try:
+            media = threads.fetch_threads_post(url)
+            return jsonify(instagram.instagram_check_response(url, media))
+        except threads.ThreadsAuthError:
             return jsonify({"error": messages.text("threads_auth", lang)}), 400
-        return jsonify({"error": messages.text("extract_failed", lang)}), 400
+        except Exception as e:
+            paths.log_exception(f"check_link (Threads): {url}", e)
+            return jsonify({"error": messages.text("extract_failed", lang)}), 400
 
     # Pinterest boards and pins are read from Pinterest's own web API (backend/pinterest.py): a public board needs no
     # login, a private one is read with the user's own Pinterest session.
@@ -281,10 +277,7 @@ def start_download():
         threading.Thread(target=run_instagram, daemon=True).start()
         return jsonify({"job_id": job_id})
 
-    threads_candidates = []
     if cls.kind == classify.LinkKind.THREADS_POST:
-        threads_candidates = threads.threads_cookiefile_candidates()
-    if threads_candidates:
         job_id = uuid.uuid4().hex
         jobs.jobs[job_id] = {
             "status": "running", "percent": 0, "text": "Starting...",
@@ -293,7 +286,7 @@ def start_download():
 
         def run_threads():
             try:
-                media = threads.fetch_threads_media_any(url, threads_candidates)
+                media = threads.fetch_threads_post(url)
                 items = media["items"]
                 idx = (entry_index - 1) if entry_index else 0
                 if idx < 0 or idx >= len(items):
@@ -323,8 +316,6 @@ def start_download():
                 jobs.jobs[job_id]["text"] = str(e) or "Download failed"
                 jobs.jobs[job_id]["status"] = "error"
                 return
-            finally:
-                cookies._cleanup_temp_cookiefiles(threads_candidates)
             jobs.jobs[job_id]["percent"] = 100
             jobs.jobs[job_id]["text"] = f"Saved: {jobs.jobs[job_id]['filename']}"
             jobs.jobs[job_id]["status"] = "done"
