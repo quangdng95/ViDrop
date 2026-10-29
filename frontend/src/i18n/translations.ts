@@ -34,8 +34,21 @@ export interface Translations {
     checking: string;
     clearUrl: string;
     removeUrl: string;
+    singleMode: string; // mode toggle: one link at a time
+    bulkMode: string; // mode toggle: paste several links at once
   };
   checkingStatus: { checkingLink: string; cancel: string; keychainHint: string };
+  bulk: {
+    heading: string; // section title above the per-link results list
+    fieldLabel: string; // label above the multi-line paste box
+    placeholder: string; // multi-line paste box placeholder
+    linksCount: string; // "{n} links ready to download", updated live as the user types
+    invalidUrl: string; // per-row error: the line isn't a link at all
+    playlistUnsupported: string; // per-row error: a playlist/channel link, which bulk mode doesn't expand
+    cancelled: string; // per-row error after Cancel is pressed
+    genericFailed: string; // per-row fallback when the server gave no message
+    newBatch: string; // button once a batch finished: clear the list and paste a new one
+  };
   playlist: {
     heading: string;
     empty: string;
@@ -239,12 +252,25 @@ const en: Translations = {
     checking: "Checking",
     clearUrl: "Clear URL",
     removeUrl: "Remove URL",
+    singleMode: "1 Link",
+    bulkMode: "Bulk",
   },
   checkingStatus: {
     checkingLink: "Checking Link…",
     cancel: "Cancel",
     keychainHint:
       "🔐 macOS may ask for Keychain permission to read your Instagram/Threads login from your browser — this is expected, click \"Always Allow\" so it only happens once.",
+  },
+  bulk: {
+    heading: "Bulk Download",
+    fieldLabel: "Paste multiple links",
+    placeholder: "Paste multiple links, one per line",
+    linksCount: "{n} links ready to download",
+    invalidUrl: "Not a valid link",
+    playlistUnsupported: "This is a playlist/channel — paste it on its own to pick items",
+    cancelled: "Cancelled",
+    genericFailed: "Download failed",
+    newBatch: "Paste new links",
   },
   playlist: {
     heading: "Select items to download",
@@ -585,6 +611,14 @@ const en: Translations = {
   changelog: {
     releases: [
       {
+        date: "2026-10-29",
+        title: "ViDrop 2.0.5: Bulk download, and less scrolling to start",
+        items: [
+          "New Bulk mode: tap \"Bulk\" above the link field, paste several links at once (one per line), and ViDrop downloads them all, showing each one's own progress. A playlist or channel link is skipped with a note instead of being expanded - paste it on its own to pick items.",
+          "After pasting a link, ViDrop no longer makes you scroll past the big headline to reach Start Download.",
+        ],
+      },
+      {
         date: "2026-10-23",
         title: "Threads works again",
         items: [
@@ -813,12 +847,25 @@ const vi: Translations = {
     checking: "Đang kiểm tra",
     clearUrl: "Xoá đường dẫn",
     removeUrl: "Gỡ đường dẫn",
+    singleMode: "1 Link",
+    bulkMode: "Hàng loạt",
   },
   checkingStatus: {
     checkingLink: "Đang kiểm tra đường dẫn…",
     cancel: "Huỷ",
     keychainHint:
       "🔐 macOS có thể hỏi quyền Keychain để đọc phiên đăng nhập Instagram/Threads từ trình duyệt của bạn — đây là điều bình thường, hãy chọn \"Always Allow\" để chỉ cần cấp quyền một lần.",
+  },
+  bulk: {
+    heading: "Tải hàng loạt",
+    fieldLabel: "Dán nhiều link",
+    placeholder: "Dán nhiều link, mỗi link một dòng",
+    linksCount: "{n} link sẵn sàng để tải",
+    invalidUrl: "Không phải link hợp lệ",
+    playlistUnsupported: "Đây là playlist/kênh — dán link này riêng để chọn từng mục",
+    cancelled: "Đã huỷ",
+    genericFailed: "Tải xuống thất bại",
+    newBatch: "Dán link mới",
   },
   playlist: {
     heading: "Chọn các mục để tải",
@@ -1155,6 +1202,14 @@ const vi: Translations = {
   },
   changelog: {
     releases: [
+      {
+        date: "29-10-2026",
+        title: "ViDrop 2.0.5: Tải hàng loạt, đỡ phải kéo xuống mới tải được",
+        items: [
+          "Chế độ Hàng loạt mới: bấm \"Hàng loạt\" phía trên ô dán link, dán nhiều link cùng lúc (mỗi link một dòng), ViDrop tải hết và hiện tiến độ riêng từng link. Link playlist/kênh sẽ bị bỏ qua kèm ghi chú thay vì tự mở rộng - dán link đó riêng để chọn từng mục.",
+          "Sau khi dán link, ViDrop không còn bắt bạn kéo qua tiêu đề to để tới nút Bắt đầu tải nữa.",
+        ],
+      },
       {
         date: "23-10-2026",
         title: "Threads dùng lại được",

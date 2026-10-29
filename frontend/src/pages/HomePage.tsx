@@ -10,12 +10,14 @@ import UrlInputCard, { type UrlInputStatus } from "../components/UrlInputCard";
 import CheckingStatusCard from "../components/CheckingStatusCard";
 import VideoInfoCard from "../components/VideoInfoCard";
 import PlaylistItemsCard, { type BatchSummary } from "../components/PlaylistItemsCard";
+import BulkDownloadCard from "../components/BulkDownloadCard";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "../api";
 import type { CheckResult, Platform, PlaylistItem, RowProgress, VideoInfo } from "../types";
 import { useLanguage } from "../i18n/LanguageContext";
@@ -42,8 +44,11 @@ interface HomePageProps {
   onPendingUrlConsumed?: () => void;
 }
 
+type InputMode = "single" | "bulk";
+
 const HomePage = ({ onNavigate: _onNavigate, pendingUrl = null, onPendingUrlConsumed }: HomePageProps) => {
   const { t } = useLanguage();
+  const [mode, setMode] = useState<InputMode>("single");
   const [url, setUrl] = useState("");
   const [checking, setChecking] = useState(false);
   const [checkSeconds, setCheckSeconds] = useState(0);
@@ -243,6 +248,23 @@ const HomePage = ({ onNavigate: _onNavigate, pendingUrl = null, onPendingUrlCons
     checkTokenRef.current += 1;
     setChecking(false);
     setUrl("");
+  };
+
+  // Switching to Bulk clears any in-progress single-link check/download so it
+  // can't linger underneath the bulk list; switching back leaves Bulk's own
+  // list and in-flight jobs alone (it unmounts, the jobs keep running on the
+  // server - the same tradeoff a browser tab close would make).
+  const handleModeChange = (next: InputMode) => {
+    if (next === mode) return;
+    setMode(next);
+    if (next === "bulk") {
+      checkTokenRef.current += 1;
+      setChecking(false);
+      setUrl("");
+      setCheckResult(null);
+      setCheckError(null);
+      resetDownloadState();
+    }
   };
 
   const playlistSingle: PlaylistItem | null =
@@ -459,41 +481,69 @@ const HomePage = ({ onNavigate: _onNavigate, pendingUrl = null, onPendingUrlCons
     inputStatus = "result";
   }
 
+  // The hero's giant tagline is only worth the scroll space before there's
+  // anything to act on - once a single link is typed/pasted, or Bulk mode is
+  // open, the URL bar and its results should be the first thing on screen.
+  const showHero = mode === "single" && !url.trim();
+
   return (
     <div className="w-full">
       <div className="w-full flex flex-col gap-6">
           {/* Hero: kept short so the URL bar sits inside the first mobile screen. */}
-          <div className="page-container flex flex-col items-start gap-3 pt-2 text-left md:pt-6">
-            <h1 className="m-0 font-display text-[clamp(2.75rem,14vw,10.5rem)] leading-[0.9] [:lang(vi)_&]:leading-[1.02] font-bold tracking-[-0.06em] text-ink uppercase">
-              {t.header.home.taglineLines.map((line) => (
-                <span key={line} className="block">
-                  {line}
-                </span>
-              ))}
-            </h1>
-            <p className="m-0 max-w-[40em] text-[1.1875rem] leading-snug text-balance text-ink">{t.header.home.sub}</p>
-          </div>
-          <div className="page-container">
-            <UrlInputCard
-              ref={inputRef}
-              value={url}
-              onChange={setUrl}
-              status={inputStatus}
-              onPaste={handlePaste}
-              onClear={handleClear}
-              onInputFocus={() => void tryAutoPasteRef.current()}
-              clearDisabled={downloadState === "downloading" || busy}
-              pasting={pasting}
-              qualities={currentQualities}
-              qualityValue={selectedQuality}
-              onQualityChange={setSelectedQuality}
-              qualityDisabled={checking || downloadState === "downloading" || busy}
-              keepCodec={keepCodec}
-              onKeepCodecChange={checkResult?.type === "video" || playlistSingle ? setKeepCodec : undefined}
-            />
+          {showHero && (
+            <div className="page-container flex flex-col items-start gap-3 pt-2 text-left md:pt-6">
+              <h1 className="m-0 font-display text-[clamp(2.75rem,14vw,10.5rem)] leading-[0.9] [:lang(vi)_&]:leading-[1.02] font-bold tracking-[-0.06em] text-ink uppercase">
+                {t.header.home.taglineLines.map((line) => (
+                  <span key={line} className="block">
+                    {line}
+                  </span>
+                ))}
+              </h1>
+              <p className="m-0 max-w-[40em] text-[1.1875rem] leading-snug text-balance text-ink">{t.header.home.sub}</p>
+            </div>
+          )}
+          <div className="page-container flex flex-col gap-4">
+            <Tabs value={mode} onValueChange={(val) => handleModeChange(val as InputMode)}>
+              <TabsList className="h-auto max-w-full gap-0 overflow-x-auto rounded-none border-[3px] border-ink bg-transparent p-0">
+                <TabsTrigger
+                  value="single"
+                  className="min-h-12 shrink-0 select-none rounded-none border-0 px-6 font-display text-base font-bold text-ink uppercase after:hidden data-active:bg-ink data-active:text-on-ink data-active:shadow-none hover:bg-signal hover:text-ink data-active:hover:bg-ink data-active:hover:text-on-ink"
+                >
+                  {t.urlInput.singleMode}
+                </TabsTrigger>
+                <TabsTrigger
+                  value="bulk"
+                  className="min-h-12 shrink-0 select-none rounded-none border-0 px-6 font-display text-base font-bold text-ink uppercase after:hidden data-active:bg-ink data-active:text-on-ink data-active:shadow-none hover:bg-signal hover:text-ink data-active:hover:bg-ink data-active:hover:text-on-ink"
+                >
+                  {t.urlInput.bulkMode}
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+
+            {mode === "single" ? (
+              <UrlInputCard
+                ref={inputRef}
+                value={url}
+                onChange={setUrl}
+                status={inputStatus}
+                onPaste={handlePaste}
+                onClear={handleClear}
+                onInputFocus={() => void tryAutoPasteRef.current()}
+                clearDisabled={downloadState === "downloading" || busy}
+                pasting={pasting}
+                qualities={currentQualities}
+                qualityValue={selectedQuality}
+                onQualityChange={setSelectedQuality}
+                qualityDisabled={checking || downloadState === "downloading" || busy}
+                keepCodec={keepCodec}
+                onKeepCodecChange={checkResult?.type === "video" || playlistSingle ? setKeepCodec : undefined}
+              />
+            ) : (
+              <BulkDownloadCard />
+            )}
           </div>
 
-          {checkError && !checking && (
+          {mode === "single" && checkError && !checking && (
             <PlatformBlock tone="ink" role="alert">
               <AlertCircle className="h-11 w-11 text-signal" aria-hidden />
               <p className={`${bigStatus} text-[clamp(2rem,9vw,5.5rem)] text-signal`}>{t.urlInput.checkFailedTitle}</p>
@@ -506,7 +556,7 @@ const HomePage = ({ onNavigate: _onNavigate, pendingUrl = null, onPendingUrlCons
             </PlatformBlock>
           )}
 
-          {checking && (
+          {mode === "single" && checking && (
             <CheckingStatusCard
               seconds={checkSeconds}
               onCancel={handleCancelCheck}
@@ -514,7 +564,7 @@ const HomePage = ({ onNavigate: _onNavigate, pendingUrl = null, onPendingUrlCons
             />
           )}
 
-          {!checking && !checkResult && !checkError && (
+          {mode === "single" && !checking && !checkResult && !checkError && (
             <AnimatedSection className="page-container flex flex-col gap-8">
               <section aria-labelledby="platforms-heading">
                 <h2 id="platforms-heading" className="sr-only">

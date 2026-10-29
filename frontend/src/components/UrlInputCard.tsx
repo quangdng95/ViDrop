@@ -143,7 +143,7 @@ const UrlInputCard = forwardRef<HTMLInputElement, UrlInputCardProps>(
                     key={quality}
                     value={quality}
                     disabled={qualityDisabled}
-                    className="min-h-11 shrink-0 select-none rounded-none border-0 px-4 font-display text-base font-bold text-ink uppercase after:hidden data-active:bg-ink data-active:text-on-ink data-active:shadow-none hover:bg-signal data-active:hover:bg-ink"
+                    className="min-h-11 shrink-0 select-none rounded-none border-0 px-4 font-display text-base font-bold text-ink uppercase after:hidden data-active:bg-ink data-active:text-on-ink data-active:shadow-none hover:bg-signal hover:text-ink data-active:hover:bg-ink data-active:hover:text-on-ink"
                   >
                     {quality}
                   </TabsTrigger>
