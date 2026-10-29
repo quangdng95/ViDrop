@@ -5,6 +5,21 @@ is the raw, engineering-facing history; the app itself also has an in-app **Chan
 (`frontend/src/pages/ChangelogPage.tsx`, header nav) with the same entries written for end users —
 keep both updated together when shipping a user-visible change.
 
+## 2026-10-29 · ViDrop 2.0.5: Bulk download, less scrolling
+
+- [x] A "1 Link" / "Bulk" toggle above the URL bar (`frontend/src/pages/HomePage.tsx`). Bulk mode pastes several
+  links (one per line) into a textarea and "Download All" checks and downloads up to 3 at a time
+  (`frontend/src/components/BulkDownloadCard.tsx`), reusing the existing `/api/check`/`/api/download` routes per
+  link - no backend changes. Each row shows its own thumbnail/title/progress/Save; a playlist/channel link pasted
+  into the box is skipped with an explanation rather than expanded (bulk mode is for distinct single links only).
+- [x] The hero tagline no longer stays on screen once a link is typed or pasted - the URL bar and result card are
+  now the first thing visible, cutting the scroll needed to reach "Start Download" roughly in half.
+- [x] Fixed a pre-existing CSS specificity bug in the shared `TabsTrigger` (`frontend/src/components/ui/tabs.tsx`
+  consumers): the active tab's text color lost to the base `hover:text-foreground` rule whenever the pointer
+  rested on a selected tab, because `:where()` zeroes out the override's specificity edge. Added the missing
+  `data-active:hover:text-on-ink` to both the quality selector and the new mode toggle. Root-caused with Chrome
+  DevTools Protocol (`CSS.getMatchedStylesForNode`) after `document.styleSheets` introspection gave false negatives.
+
 ## 2026-10-23 · Threads works without a login again
 
 - [x] Threads started sending even a valid browser session to the login page when the private API
