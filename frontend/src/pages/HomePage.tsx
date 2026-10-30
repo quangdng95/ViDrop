@@ -49,6 +49,9 @@ type InputMode = "single" | "bulk";
 const HomePage = ({ onNavigate: _onNavigate, pendingUrl = null, onPendingUrlConsumed }: HomePageProps) => {
   const { t } = useLanguage();
   const [mode, setMode] = useState<InputMode>("single");
+  // Bulk mode's own "nothing pasted/resolved yet" flag, reported up so the hero tagline's visibility
+  // rule stays symmetric between the two tabs instead of only ever hiding for Bulk.
+  const [bulkEmpty, setBulkEmpty] = useState(true);
   const [url, setUrl] = useState("");
   const [checking, setChecking] = useState(false);
   const [checkSeconds, setCheckSeconds] = useState(0);
@@ -484,7 +487,7 @@ const HomePage = ({ onNavigate: _onNavigate, pendingUrl = null, onPendingUrlCons
   // The hero's giant tagline is only worth the scroll space before there's
   // anything to act on - once a single link is typed/pasted, or Bulk mode is
   // open, the URL bar and its results should be the first thing on screen.
-  const showHero = mode === "single" && !url.trim();
+  const showHero = mode === "single" ? !url.trim() : bulkEmpty;
 
   return (
     <div className="w-full">
@@ -539,7 +542,7 @@ const HomePage = ({ onNavigate: _onNavigate, pendingUrl = null, onPendingUrlCons
                 onKeepCodecChange={checkResult?.type === "video" || playlistSingle ? setKeepCodec : undefined}
               />
             ) : (
-              <BulkDownloadCard />
+              <BulkDownloadCard onEmptyStateChange={setBulkEmpty} />
             )}
           </div>
 

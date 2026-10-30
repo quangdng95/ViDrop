@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   Download,
@@ -22,7 +22,7 @@ import PlatformBlock from "./PlatformBlock";
 import PlatformTag from "./PlatformTag";
 import { ctaGhost, ctaLight, progressSlab, rowButton } from "../lib/blockStyles";
 import { useLanguage } from "../i18n/LanguageContext";
-import { preparePlainFile, type PrepareOptions } from "../lib/saveFile";
+import { preparePlainFile, prepareZipFromUrls, type PrepareOptions } from "../lib/saveFile";
 import { usePreparedSave } from "../hooks/usePreparedSave";
 import { api } from "../api";
 import { isLocal } from "../isLocal";
@@ -48,8 +48,11 @@ interface BulkRow {
   kind?: MediaKind;
   percent: number;
   jobId: string | null;
-  // Set once a job is done on a remote deployment, so the row can offer its own Save.
+  // Set once a job is done on a remote deployment, so Save All can fetch it.
   downloadUrl?: string;
+  // The server's own saved filename (with its real extension) - unlike `title`, this is what lets a
+  // saved file be recognized as an image/video instead of falling back to a generic file type.
+  filename: string | null;
   errorMessage: string | null;
   // False for a line that was never a real downloadable link (not a URL, or a
   // playlist/channel) - retrying it would just fail the same way again.
@@ -114,7 +117,14 @@ const pollJob = (jobId: string, isCancelled: () => boolean, onUpdate: (p: JobPro
     }, POLL_INTERVAL_MS);
   });
 
-const BulkDownloadCard = () => {
+interface BulkDownloadCardProps {
+  // Fires whenever "is there anything to show here" flips, so the page can keep the hero tagline's
+  // visibility rule symmetric between the two tabs (Jakob's Law: the same "empty vs. not" behavior the
+  // single-link tab already has, not a surprise special case for Bulk).
+  onEmptyStateChange?: (empty: boolean) => void;
+}
+
+const BulkDownloadCard = ({ onEmptyStateChange }: BulkDownloadCardProps) => {
   const { t } = useLanguage();
   const [text, setText] = useState("");
   const [rows, setRows] = useState<BulkRow[]>([]);
@@ -123,6 +133,12 @@ const BulkDownloadCard = () => {
   const activeJobIdsRef = useRef<Set<string>>(new Set());
 
   const parsedCount = useMemo(() => parseLines(text).filter((line) => URL_LINE.test(line)).length, [text]);
+
+  const isEmpty = text.trim() === "" && rows.length === 0;
+  useEffect(() => {
+    onEmptyStateChange?.(isEmpty);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEmpty]);
 
   const updateRow = (id: string, patch: Partial<BulkRow>) =>
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
@@ -213,6 +229,7 @@ const BulkDownloadCard = () => {
       updateRow(row.id, {
         status: "done",
         percent: 100,
+        filename: final.filename,
         downloadUrl: isLocal() ? undefined : `/api/download-file/${jobId}`,
       });
       recordDownload({ url: row.url, title, platform, thumbnail });
@@ -270,6 +287,7 @@ const BulkDownloadCard = () => {
         thumbnail: null,
         percent: 0,
         jobId: null,
+        filename: null,
         errorMessage: valid ? null : t.bulk.invalidUrl,
         retryable: valid,
       });
@@ -327,6 +345,65 @@ const BulkDownloadCard = () => {
     : 0;
   const numWidth = Math.max(2, String(rows.length).length);
 
+  // One combined Save action for the whole batch - the same pattern a single link-with-many-items
+  // (a playlist/carousel) already uses, instead of making a remote visitor tap Save once per link
+  // (Tesler's Law: the app absorbs that complexity, not the user). Only relevant on the web: the local
+  // desktop app already wrote every finished file straight to the configured folder.
+  const completedRows = useMemo(() => rows.filter((r) => r.status === "done" && r.downloadUrl), [rows]);
+  // Keyed on "the batch just settled with N done", not on every single row finishing mid-run - refetching
+  // and re-zipping everything after each individual completion would be wasteful and pointless before the
+  // user can even tap Save.
+  const saveTriggerKey = !running && completedRows.length > 0 ? `${completedRows.length}` : undefined;
+  const prepareBulkSave = useCallback(
+    (_url: string, options: PrepareOptions) => {
+      if (completedRows.length === 1) {
+        const only = completedRows[0];
+        return preparePlainFile(only.downloadUrl as string, only.filename || only.title || only.url, options);
+      }
+      return prepareZipFromUrls(
+        completedRows.map((r, i) => ({
+          url: r.downloadUrl as string,
+          filename: `${String(i + 1).padStart(2, "0")} - ${r.filename || r.title || r.url}`,
+        })),
+        `${t.bulk.heading}.zip`,
+        options
+      );
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [saveTriggerKey]
+  );
+  const {
+    saving: saveAllSaving,
+    failed: saveAllFailed,
+    preparing: saveAllPreparing,
+    progress: saveAllProgress,
+    shareKind: saveAllShareKind,
+    save: handleSaveAll,
+  } = usePreparedSave(saveTriggerKey, prepareBulkSave);
+  const saveAllBusy = saveAllSaving || saveAllPreparing;
+  const saveAllLabel = saveAllPreparing
+    ? saveAllProgress === null
+      ? t.downloadSuccess.preparingNoPercent
+      : t.downloadSuccess.preparing.replace("{percent}", String(Math.round(saveAllProgress)))
+    : saveAllFailed
+      ? t.downloadSuccess.tryAgain
+      : saveAllShareKind === "photos"
+        ? t.downloadSuccess.saveToPhotos
+        : t.downloadSuccess.save;
+  const canSaveAll = !running && !isLocal() && completedRows.length > 0;
+  const renderSaveAllButton = () => (
+    <button type="button" onClick={handleSaveAll} disabled={saveAllBusy} className={ctaLight}>
+      {saveAllBusy ? (
+        <Loader2 className="h-6 w-6 animate-spin" aria-hidden />
+      ) : saveAllFailed ? (
+        <RefreshCw className="h-6 w-6" aria-hidden />
+      ) : (
+        <Save className="h-6 w-6" aria-hidden />
+      )}
+      {saveAllLabel}
+    </button>
+  );
+
   return (
     <div className="flex w-full flex-col gap-6">
       <div className="flex flex-col gap-4">
@@ -367,10 +444,13 @@ const BulkDownloadCard = () => {
                 {t.downloadProgress.cancelDownload}
               </button>
             ) : (
-              <button type="button" onClick={handleReset} className={ctaGhost}>
-                <RefreshCw className="h-5 w-5" aria-hidden />
-                {t.bulk.newBatch}
-              </button>
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                {canSaveAll && renderSaveAllButton()}
+                <button type="button" onClick={handleReset} className={ctaGhost}>
+                  <RefreshCw className="h-5 w-5" aria-hidden />
+                  {t.bulk.newBatch}
+                </button>
+              </div>
             )}
           </div>
 
@@ -420,6 +500,7 @@ const BulkDownloadCard = () => {
                     {t.downloadSuccess.openFolder}
                   </button>
                 )}
+                {canSaveAll && renderSaveAllButton()}
               </div>
             </div>
           )}
@@ -438,25 +519,6 @@ interface BulkRowItemProps {
 
 const BulkRowItem = ({ row, position, numWidth, onRetry }: BulkRowItemProps) => {
   const { t } = useLanguage();
-  const prepare = useCallback(
-    (url: string, options: PrepareOptions) => preparePlainFile(url, row.title || row.url, options),
-    [row.title, row.url]
-  );
-  const { saving, failed: saveFailed, preparing, progress, shareKind, save } = usePreparedSave(
-    row.status === "done" ? row.downloadUrl : undefined,
-    prepare
-  );
-  const saveBusy = saving || preparing;
-  const saveLabel = preparing
-    ? progress === null
-      ? t.downloadSuccess.preparingNoPercent
-      : t.downloadSuccess.preparing.replace("{percent}", String(Math.round(progress)))
-    : saveFailed
-      ? t.downloadSuccess.tryAgain
-      : shareKind === "photos"
-        ? t.downloadSuccess.saveToPhotos
-        : t.downloadSuccess.save;
-
   const formattedNum = String(position).padStart(numWidth, "0");
 
   return (
@@ -504,18 +566,10 @@ const BulkRowItem = ({ row, position, numWidth, onRetry }: BulkRowItemProps) => 
         )}
 
         {row.status === "done" && (
-          <div className="flex w-full flex-row items-center justify-between gap-2 sm:w-auto sm:flex-col sm:items-end">
-            <span className="inline-flex items-center gap-1.5 font-display text-base font-bold uppercase">
-              <Check className="h-5 w-5" strokeWidth={3} aria-hidden />
-              {t.playlist.downloaded}
-            </span>
-            {row.downloadUrl && (
-              <button type="button" className={rowButton} onClick={save} disabled={saveBusy}>
-                {saveBusy ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden /> : <Save className="h-5 w-5" aria-hidden />}
-                {saveLabel}
-              </button>
-            )}
-          </div>
+          <span className="inline-flex items-center gap-1.5 font-display text-base font-bold uppercase">
+            <Check className="h-5 w-5" strokeWidth={3} aria-hidden />
+            {t.playlist.downloaded}
+          </span>
         )}
 
         {(row.status === "error" || row.status === "skipped") && (

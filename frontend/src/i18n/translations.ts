@@ -209,6 +209,7 @@ export interface Translations {
     requestFailedStatus: string; // "{status}" placeholder
     uploadFailed: string;
     fileFetchFailed: string; // "{status}" placeholder
+    zipTooBig: string; // bundling several bulk-download files into one .zip to save would use too much memory
   };
   changelog: {
     releases: { date: string; title: string; items: string[] }[];
@@ -607,6 +608,7 @@ const en: Translations = {
     requestFailedStatus: "Request failed ({status}).",
     uploadFailed: "Upload failed.",
     fileFetchFailed: "Failed to fetch file ({status})",
+    zipTooBig: "Too much to bundle into one save. Try fewer links at a time.",
   },
   changelog: {
     releases: [
@@ -1199,6 +1201,7 @@ const vi: Translations = {
     requestFailedStatus: "Yêu cầu thất bại ({status}).",
     uploadFailed: "Tải lên thất bại.",
     fileFetchFailed: "Không lấy được tệp ({status}).",
+    zipTooBig: "Quá nhiều để gộp vào một lần lưu. Hãy thử với ít link hơn.",
   },
   changelog: {
     releases: [

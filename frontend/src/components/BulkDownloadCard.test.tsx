@@ -18,6 +18,7 @@ vi.mock("../api", () => ({
 }));
 vi.mock("../lib/saveFile", () => ({
   preparePlainFile: vi.fn(() => Promise.resolve({ files: [], fallbackBlob: new Blob(), fallbackFilename: "x" })),
+  prepareZipFromUrls: vi.fn(() => Promise.resolve({ files: [], fallbackBlob: new Blob(), fallbackFilename: "x" })),
   sharePreparedSave: vi.fn().mockResolvedValue("shared"),
   isNotAllowedError: () => false,
   isAbortError: (e: unknown) => e instanceof Error && e.name === "AbortError",
@@ -25,6 +26,9 @@ vi.mock("../lib/saveFile", () => ({
 }));
 
 const mockedApi = vi.mocked(api, true);
+const saveFileModule = await import("../lib/saveFile");
+const mockedPreparePlainFile = vi.mocked(saveFileModule.preparePlainFile);
+const mockedPrepareZipFromUrls = vi.mocked(saveFileModule.prepareZipFromUrls);
 
 const VIDEO_A: VideoInfo = {
   type: "video",
@@ -34,6 +38,16 @@ const VIDEO_A: VideoInfo = {
   platform: "YouTube",
   qualities: ["Best", "720p"],
   duration: "00:30",
+};
+
+const VIDEO_B: VideoInfo = {
+  type: "video",
+  title: "Clip B",
+  uploader: "U",
+  thumbnail: null,
+  platform: "TikTok",
+  qualities: ["Best"],
+  duration: "00:15",
 };
 
 const renderCard = () =>
@@ -120,5 +134,85 @@ describe("BulkDownloadCard", () => {
 
     expect(mockedApi.cancelJob).toHaveBeenCalledWith("job-2");
     await screen.findByText(/cancelled/i);
+  });
+
+  it("on the web, a single finished link saves with its real filename (extension included) instead of the bare title", async () => {
+    vi.spyOn(isLocalModule, "isLocal").mockReturnValue(false);
+    mockedApi.checkLink.mockResolvedValue(VIDEO_A);
+    mockedApi.startDownload.mockResolvedValue({ job_id: "job-3" });
+    // The server's own saved filename has the real extension - unlike the raw post title, this is what
+    // lets the OS recognize the shared file as a photo/video instead of a generic file (the bug report).
+    mockedApi.getProgress.mockResolvedValue({ status: "done", percent: 100, text: "", filename: "Clip A.mp4" });
+
+    const user = userEvent.setup({ delay: null });
+    renderCard();
+
+    await user.click(screen.getByPlaceholderText("Paste multiple links, one per line"));
+    await user.paste("https://youtube.com/watch?v=a");
+    await user.click(screen.getByRole("button", { name: /download all/i }));
+    await screen.findByText("Downloaded");
+
+    // One centralized Save action (shown both above and below the list, like a playlist's own Save
+    // button) - no more per-row Save button next to each "Downloaded" row.
+    const saveButtons = screen.getAllByRole("button", { name: /save to device/i });
+    expect(saveButtons).toHaveLength(2);
+    await user.click(saveButtons[0]);
+
+    await waitFor(() => expect(mockedPreparePlainFile).toHaveBeenCalled());
+    expect(mockedPreparePlainFile.mock.calls[0][1]).toBe("Clip A.mp4");
+    expect(mockedPrepareZipFromUrls).not.toHaveBeenCalled();
+  });
+
+  it("on the web, several finished links are bundled into one zip instead of needing one tap each", async () => {
+    vi.spyOn(isLocalModule, "isLocal").mockReturnValue(false);
+    mockedApi.checkLink.mockImplementation((url: string) => Promise.resolve(url.endsWith("a") ? VIDEO_A : VIDEO_B));
+    mockedApi.startDownload.mockImplementation((_url, title) =>
+      Promise.resolve({ job_id: title === "Clip A" ? "job-a" : "job-b" })
+    );
+    mockedApi.getProgress.mockImplementation((jobId: string) =>
+      Promise.resolve({
+        status: "done",
+        percent: 100,
+        text: "",
+        filename: jobId === "job-a" ? "Clip A.mp4" : "Clip B.mp4",
+      })
+    );
+
+    const user = userEvent.setup({ delay: null });
+    renderCard();
+
+    await user.click(screen.getByPlaceholderText("Paste multiple links, one per line"));
+    await user.paste("https://youtube.com/watch?v=a\nhttps://youtube.com/watch?v=b");
+    await user.click(screen.getByRole("button", { name: /download all/i }));
+    await waitFor(() => expect(screen.getAllByText("Downloaded")).toHaveLength(2));
+
+    const saveButtons = screen.getAllByRole("button", { name: /save to device/i });
+    expect(saveButtons).toHaveLength(2);
+    await user.click(saveButtons[0]);
+
+    await waitFor(() => expect(mockedPrepareZipFromUrls).toHaveBeenCalled());
+    const entries = mockedPrepareZipFromUrls.mock.calls[0][0];
+    expect(entries).toHaveLength(2);
+    expect(entries.map((e) => e.filename)).toEqual(["01 - Clip A.mp4", "02 - Clip B.mp4"]);
+    expect(mockedPreparePlainFile).not.toHaveBeenCalled();
+  });
+
+  it("reports its empty state so the page can show/hide the hero the same way the single-link tab does", async () => {
+    const onEmptyStateChange = vi.fn();
+    const user = userEvent.setup({ delay: null });
+    render(
+      <LanguageProvider>
+        <BulkDownloadCard onEmptyStateChange={onEmptyStateChange} />
+      </LanguageProvider>
+    );
+
+    expect(onEmptyStateChange).toHaveBeenLastCalledWith(true);
+
+    await user.click(screen.getByPlaceholderText("Paste multiple links, one per line"));
+    await user.paste("https://youtube.com/watch?v=a");
+    await waitFor(() => expect(onEmptyStateChange).toHaveBeenLastCalledWith(false));
+
+    await user.clear(screen.getByPlaceholderText("Paste multiple links, one per line"));
+    await waitFor(() => expect(onEmptyStateChange).toHaveBeenLastCalledWith(true));
   });
 });

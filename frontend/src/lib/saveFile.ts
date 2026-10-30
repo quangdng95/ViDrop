@@ -1,4 +1,4 @@
-import { unzipSync } from "fflate";
+import { unzipSync, zipSync } from "fflate";
 import { translations } from "../i18n/translations";
 import { detectLanguage } from "../i18n/storage";
 
@@ -250,4 +250,53 @@ export async function saveDownloadedZipAsFiles(
   fallbackFilename: string
 ): Promise<"shared" | "downloaded"> {
   return sharePreparedSave(await prepareZipFiles(url, fallbackFilename));
+}
+
+// Bundles several already-finished downloads into one .zip the user saves once, instead of tapping Save
+// once per item. Used by bulk (multi-link) download, where - unlike a playlist/carousel batch - the
+// server never produced one zip: each link is its own independent job with its own URL, so the zip is
+// built here from whatever the caller already knows is done. Unlike prepareZipFiles (which downloads an
+// already-zipped URL), this one fetches every item itself, so the total is capped to keep memory sane on
+// both iOS and desktop; going over it fails loudly (a toast) rather than silently truncating the zip.
+const ZIP_BUNDLE_MAX_BYTES = 500 * 1024 * 1024;
+
+export interface ZipBundleItem {
+  url: string;
+  // Entry name inside the zip; the caller is responsible for making these unique (e.g. a numeric prefix).
+  filename: string;
+}
+
+export async function prepareZipFromUrls(
+  items: ZipBundleItem[],
+  zipFilename: string,
+  options: PrepareOptions = {}
+): Promise<PreparedSave> {
+  const maxBytes = getSavePlatform() === "ios" ? IOS_PREPARE_MAX_BYTES : ZIP_BUNDLE_MAX_BYTES;
+  const entries: Record<string, Uint8Array> = {};
+  let received = 0;
+  for (const item of items) {
+    if (options.signal?.aborted) {
+      const abortError = new Error("Aborted");
+      abortError.name = "AbortError";
+      throw abortError;
+    }
+    const blob = await fetchBlobWithProgress(item.url, Math.max(0, maxBytes - received), { signal: options.signal });
+    if (!blob) {
+      throw new FileFetchError(translations[detectLanguage()].apiErrors.zipTooBig);
+    }
+    received += blob.size;
+    entries[sanitizeFilename(item.filename)] = new Uint8Array(await blob.arrayBuffer());
+    options.onProgress?.(Math.min(99, Math.floor((received / maxBytes) * 100)));
+  }
+  const zipBlob = new Blob([zipSync(entries, { level: 6 }) as BlobPart], { type: "application/zip" });
+  options.onProgress?.(100);
+
+  if (getSavePlatform() !== "ios") {
+    return { files: [], fallbackBlob: zipBlob, fallbackFilename: zipFilename };
+  }
+  const files = Object.entries(entries).map(([name, data]) => new File([data as BlobPart], name, { type: mimeTypeFor(name) }));
+  if (files.length > 0 && !canShareFiles(files)) {
+    return { files: [], fallbackBlob: zipBlob, fallbackFilename: zipFilename };
+  }
+  return { files, fallbackBlob: zipBlob, fallbackFilename: zipFilename };
 }
