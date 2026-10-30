@@ -2000,6 +2000,89 @@ def test_start_batch_download_tiktok_photo_carousel_picks_each_slide(client, mon
     assert set(downloaded) == {"http://cdn/1.jpg", "http://cdn/2.jpg"}
 
 
+def test_start_batch_download_instagram_profile_photo_items_resolve_each_post_individually(client, monkeypatch, tmp_path):
+    # A profile listing (2026-10-30) mixes video reels (unchanged - still the
+    # plain yt-dlp path below) with photo/carousel posts, which yt-dlp can
+    # never fetch. Unlike a single carousel/Story batch, every row here is a
+    # DIFFERENT post, so each has to be re-resolved by its OWN url, not
+    # reused from one shared fetch.
+    cookies_file = tmp_path / "cookies.txt"
+    cookies_file.write_text(".instagram.com\tTRUE\t/\tTRUE\t1799999999\tsessionid\tabc123\n")
+    save_session(str(tmp_path), str(cookies_file))
+    monkeypatch.setattr(config, "resolve_save_dir", lambda path: str(tmp_path))
+    monkeypatch.setattr(paths, "get_ffmpeg_path", lambda: "/ff")
+
+    resolved_urls = []
+
+    def fake_resolve(url, cookiefiles):
+        resolved_urls.append(url)
+        if url == "https://www.instagram.com/p/PHOTO1/":
+            return {"title": "A photo", "items": [{"kind": "image", "url": "http://cdn/photo1.jpg"}]}
+        # A carousel post: only its first slide is saved, matching the thumbnail the listing already showed.
+        return {"title": "A carousel", "items": [
+            {"kind": "image", "url": "http://cdn/carousel-slide1.jpg"},
+            {"kind": "video", "url": "http://cdn/carousel-slide2.mp4"},
+        ]}
+
+    monkeypatch.setattr(instagram_module, "fetch_instagram_media_any", fake_resolve)
+
+    downloaded = []
+
+    def fake_download_direct_url(cdn_url, output_path, job_id, on_progress=None):
+        downloaded.append(cdn_url)
+        with open(output_path, "wb") as f:
+            f.write(b"x")
+        if on_progress:
+            on_progress(100)
+
+    monkeypatch.setattr(download_module, "download_direct_url", fake_download_direct_url)
+
+    resp = client.post(
+        "/api/download-batch",
+        json={
+            "url": "https://www.instagram.com/someuser/",
+            "quality": "Best",
+            "items": [
+                {"title": "A photo", "url": "https://www.instagram.com/p/PHOTO1/", "kind": "image"},
+                {"title": "A carousel", "url": "https://www.instagram.com/p/CAROUSEL1/", "kind": "image"},
+            ],
+        },
+    )
+    job_id = resp.get_json()["job_id"]
+    for _ in range(50):
+        if jobs_module.jobs[job_id]["status"] != "running":
+            break
+        time.sleep(0.05)
+
+    job = jobs_module.jobs[job_id]
+    assert job["status"] == "done"
+    assert job["saved_count"] == 2
+    assert sorted(resolved_urls) == ["https://www.instagram.com/p/CAROUSEL1/", "https://www.instagram.com/p/PHOTO1/"]
+    assert set(downloaded) == {"http://cdn/photo1.jpg", "http://cdn/carousel-slide1.jpg"}  # first slide only
+
+
+def test_start_batch_download_instagram_profile_photo_without_a_session_fails_the_whole_batch(client, monkeypatch, tmp_path):
+    monkeypatch.setattr(config, "resolve_save_dir", lambda path: str(tmp_path))
+    monkeypatch.setattr(paths, "get_ffmpeg_path", lambda: "/ff")
+    monkeypatch.setattr(cookies_module, "instagram_cookiefile_candidates", lambda: [])
+
+    resp = client.post(
+        "/api/download-batch",
+        json={
+            "url": "https://www.instagram.com/someuser/",
+            "quality": "Best",
+            "items": [{"title": "A photo", "url": "https://www.instagram.com/p/PHOTO1/", "kind": "image"}],
+        },
+    )
+    job_id = resp.get_json()["job_id"]
+    for _ in range(50):
+        if jobs_module.jobs[job_id]["status"] != "running":
+            break
+        time.sleep(0.05)
+
+    assert jobs_module.jobs[job_id]["status"] == "error"
+
+
 def _flat_entries(n):
     return [{"id": f"v{i}", "title": f"V{i}", "url": f"https://youtube.com/watch?v=v{i}", "duration": 60}
             for i in range(n)]

@@ -567,6 +567,12 @@ def start_batch_download():
     # there, so x_media stays None and the normal yt-dlp path is used.
     x_media = xposts.try_photos(url) if cls.platform == "X" else None
     is_x_photo = x_media is not None
+    # An Instagram profile listing mixes video reels (which yt-dlp can fetch
+    # directly, same as today) with photo/carousel posts (which it never can) -
+    # unlike every other resolver-backed case above, each row here is a
+    # DIFFERENT post, so there is no one shared media to resolve upfront; each
+    # photo/carousel item is re-resolved by its own url at download time.
+    is_ig_profile = cls.kind == classify.LinkKind.INSTAGRAM_PROFILE
 
     job_id = uuid.uuid4().hex
     total = len(items)
@@ -620,6 +626,21 @@ def start_batch_download():
                 if is_ig_carousel or is_tiktok_photo or is_linkedin_document or is_rednote_media or is_x_photo or is_pinterest_board or is_threads_post:
                     idx = item.get("entry_index") or (i + 1)
                     node = media_holder["media"]["items"][idx - 1]
+                    cdn_url = node.get("url")
+                    if not cdn_url:
+                        raise ValueError("No downloadable media found")
+                    ext = "jpg" if node["kind"] == "image" else "mp4"
+                    out = download.get_unique_filename(save_dir, item_title, ext)
+                    download.download_direct_url(cdn_url, out, job_id, on_progress=on_progress)
+                    if node["kind"] == "image":
+                        out = download.fix_image_extension(out)
+                elif is_ig_profile and item.get("kind") == "image" and item.get("url"):
+                    # A photo/carousel post from the profile listing: re-resolve
+                    # THIS post (every row here is a different post, so there is
+                    # nothing to reuse across items) and save its first slide,
+                    # the same one the listing's own thumbnail already showed.
+                    item_media = instagram.fetch_instagram_media_any(item["url"], ig_candidates)
+                    node = item_media["items"][0]
                     cdn_url = node.get("url")
                     if not cdn_url:
                         raise ValueError("No downloadable media found")
@@ -686,6 +707,14 @@ def start_batch_download():
                     media_holder["media"] = rednote.fetch_rednote_post_any(url, rn_candidates)
                 finally:
                     cookies._cleanup_temp_cookiefiles(rn_candidates)
+            elif is_ig_profile and any(it.get("kind") == "image" for it in items):
+                # No single shared media to resolve here (unlike the carousel
+                # case above, every row is its own post) - just make sure a
+                # session exists before spending BATCH_CONCURRENCY threads on
+                # photo items that would otherwise each fail the same way.
+                ig_candidates = cookies.instagram_cookiefile_candidates()
+                if not ig_candidates:
+                    raise instagram.InstagramAuthError("Instagram requires a logged-in session (cookies).")
 
             with ThreadPoolExecutor(max_workers=min(BATCH_CONCURRENCY, total)) as ex:
                 futures = [ex.submit(download_item, i, item) for i, item in enumerate(items)]
@@ -697,7 +726,9 @@ def start_batch_download():
             zipper.close()
             shutil.rmtree(zip_dir, ignore_errors=True)
             shutil.rmtree(save_dir, ignore_errors=True)
-            jobs.jobs[job_id]["text"] = extraction.describe_extraction_error(url, e, lang=lang) if is_ig_carousel else (str(e) or "Download failed")
+            jobs.jobs[job_id]["text"] = (
+                extraction.describe_extraction_error(url, e, lang=lang) if is_ig_carousel or is_ig_profile else (str(e) or "Download failed")
+            )
             jobs.jobs[job_id]["status"] = "error"
             return
 

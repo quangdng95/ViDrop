@@ -5,6 +5,25 @@ is the raw, engineering-facing history; the app itself also has an in-app **Chan
 (`frontend/src/pages/ChangelogPage.tsx`, header nav) with the same entries written for end users —
 keep both updated together when shipping a user-visible change.
 
+## 2026-10-30 · Instagram: download every post from a profile, not just video reels
+
+- [x] Pasting an Instagram profile link used to list only its video reels - every photo and carousel
+  post was silently dropped, because yt-dlp can fetch a video directly but can never fetch an Instagram
+  photo at all. The profile resolver (`backend/instagram.py`, all three resolver methods) now lists
+  every post; a photo/carousel post is one row using its first slide's kind/thumbnail (matching
+  Instagram's own profile grid - the full carousel isn't exploded into one row per slide here, that's
+  still what pasting that one post's own link directly gets you).
+- [x] `extraction.flat_playlist_items` now passes `kind` through per item (`qualities: ["Image"]` for a
+  photo row) and no longer requires `duration` for `is_available` - an image genuinely has none, unlike
+  a hidden/removed video.
+- [x] `/api/download-batch`'s per-item dispatch (`backend/app.py` and `remote_web/routes/media.py`, kept
+  in sync) gained a new branch: a photo/carousel row re-resolves that one post via
+  `fetch_instagram_media_any` (one API call per row - unlike a single carousel/Story batch, every row in
+  a profile listing is a different post, so there's nothing to resolve once and reuse) and saves its CDN
+  url directly, the same mechanism a standalone Instagram photo already uses. A video row's download is
+  unchanged (still plain yt-dlp). No frontend changes needed - `PlaylistItem.kind` already renders mixed
+  image/video rows correctly (TikTok Photo Mode, Instagram carousels).
+
 ## 2026-10-29 · ViDrop 2.0.5: Bulk download, less scrolling
 
 - [x] A "1 Link" / "Bulk" toggle above the URL bar (`frontend/src/pages/HomePage.tsx`). Bulk mode pastes several

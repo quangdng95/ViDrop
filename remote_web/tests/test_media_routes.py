@@ -698,3 +698,55 @@ def test_batch_download_threads_carousel_resolves_once_and_downloads_by_position
     job = _wait_for_job(resp.get_json()["job_id"])
     assert job["status"] == "done" and job["saved_count"] == 2
     assert sorted(got) == ["https://cdn/1.jpg", "https://cdn/3.jpg"] and len(resolved) == 1
+
+
+def test_batch_download_instagram_profile_photo_items_resolve_each_post_individually(client, monkeypatch, tmp_path):
+    # A profile listing (2026-10-30) mixes video reels (unchanged - still the
+    # plain yt-dlp path) with photo/carousel posts, which yt-dlp can never
+    # fetch. Unlike a single carousel/Story/Threads batch, every row here is
+    # a DIFFERENT post, so each is re-resolved by its own url, not reused
+    # from one shared fetch.
+    monkeypatch.setattr("remote_web.routes.media.ffmpeg_locator.resolve_ffmpeg_binary", lambda: "/fake/ffmpeg")
+    monkeypatch.setattr(config, "TEMP_ROOT", str(tmp_path))
+    monkeypatch.setattr(backend_cookies, "instagram_cookiefile_candidates", lambda: ["/fake/cookies.txt"])
+
+    resolved_urls = []
+
+    def fake_resolve(url, cookiefiles):
+        resolved_urls.append(url)
+        if url == "https://www.instagram.com/p/PHOTO1/":
+            return {"title": "A photo", "items": [{"kind": "image", "url": "https://cdn/photo1.jpg"}]}
+        return {"title": "A carousel", "items": [
+            {"kind": "image", "url": "https://cdn/carousel-slide1.jpg"},
+            {"kind": "video", "url": "https://cdn/carousel-slide2.mp4"},
+        ]}
+
+    monkeypatch.setattr(instagram_module, "fetch_instagram_media_any", fake_resolve)
+
+    got = []
+
+    def fake_direct(cdn_url, output_path, job_id, on_progress=None):
+        got.append(cdn_url)
+        with open(output_path, "wb") as f:
+            f.write(b"\xff\xd8\xff\xe0x")
+        if on_progress:
+            on_progress(100)
+
+    monkeypatch.setattr(download_module, "download_direct_url", fake_direct)
+
+    resp = client.post(
+        "/api/download-batch",
+        json={
+            "url": "https://www.instagram.com/someuser/",
+            "quality": "Best",
+            "items": [
+                {"title": "A photo", "url": "https://www.instagram.com/p/PHOTO1/", "kind": "image"},
+                {"title": "A carousel", "url": "https://www.instagram.com/p/CAROUSEL1/", "kind": "image"},
+            ],
+        },
+    )
+    assert resp.status_code == 200
+    job = _wait_for_job(resp.get_json()["job_id"])
+    assert job["status"] == "done" and job["saved_count"] == 2
+    assert sorted(resolved_urls) == ["https://www.instagram.com/p/CAROUSEL1/", "https://www.instagram.com/p/PHOTO1/"]
+    assert sorted(got) == ["https://cdn/carousel-slide1.jpg", "https://cdn/photo1.jpg"]  # first slide only

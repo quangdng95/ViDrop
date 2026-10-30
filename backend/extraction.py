@@ -450,20 +450,25 @@ def flat_playlist_items(entries):
             item_url = f"https://www.youtube.com/watch?v={entry['id']}"
         raw_title = entry.get("title") or "Video"
         duration = entry.get("duration")
+        # An Instagram profile entry carries its own kind ("image"/"video");
+        # every other flat source (YouTube) is always video and sets none.
+        kind = entry.get("kind")
         # A playlist routinely contains hidden/removed videos. yt-dlp lists
         # them with a "[Private video]"/"[Deleted video]" title and no
         # duration - flag those so the UI can disable/hide them and never
         # let a batch queue a doomed download. Keep them in the list (not
-        # dropped) so the numbering stays true to the real playlist.
+        # dropped) so the numbering stays true to the real playlist. An image
+        # post genuinely has no duration at all, so that check only applies
+        # to a video entry.
         lower = raw_title.lower()
         is_available = not (
             "[private video]" in lower
             or "[deleted video]" in lower
             or "[unavailable video]" in lower
-            or duration is None
+            or (duration is None and kind != "image")
             or not item_url
         )
-        items.append({
+        item = {
             "id": entry.get("id"),
             "title": raw_title,
             "position": pos if number_items else None,
@@ -471,9 +476,12 @@ def flat_playlist_items(entries):
             "thumbnail": resolve_thumbnail(entry),
             "duration": format_duration(duration),
             "url": item_url,
-            "qualities": classify.PLAYLIST_QUALITIES,
+            "qualities": ["Image"] if kind == "image" else classify.PLAYLIST_QUALITIES,
             "is_available": is_available,
-        })
+        }
+        if kind:
+            item["kind"] = kind
+        items.append(item)
     return items
 
 

@@ -132,7 +132,11 @@ class _FakeResponse:
         return False
 
 
-def test_fetch_instagram_profile_reel_media_filters_videos_and_paginates(monkeypatch, tmp_path):
+def test_fetch_instagram_profile_reel_media_lists_photos_and_carousels_too_and_paginates(monkeypatch, tmp_path):
+    # Widened 2026-10-30: a profile listing used to keep only media_type == 2
+    # (video reels), silently dropping every photo/carousel post - this pins
+    # that every post type is now listed, one row each, like Instagram's own
+    # profile grid (a carousel's row uses its first slide).
     cookies_file = tmp_path / "cookies.txt"
     cookies_file.write_text(".instagram.com\tTRUE\t/\tTRUE\t1799999999\tcsrftoken\tcsrf456\n")
 
@@ -145,9 +149,15 @@ def test_fetch_instagram_profile_reel_media_filters_videos_and_paginates(monkeyp
     pages = [
         {
             "items": [
-                {"media_type": 1, "code": "PHOTO1"},  # photo - must be filtered out
+                {"media_type": 1, "code": "PHOTO1", "caption": {"text": "A photo post"},
+                 "image_versions2": {"candidates": [{"url": "https://cdn/photo1.jpg"}]}},
                 {"media_type": 2, "code": "REEL1", "caption": {"text": "First reel"}, "video_duration": 12.5,
                  "image_versions2": {"candidates": [{"url": "https://cdn/reel1.jpg"}]}},
+                {"media_type": 8, "code": "CAROUSEL1", "caption": {"text": "A carousel post"},
+                 "carousel_media": [
+                     {"image_versions2": {"candidates": [{"url": "https://cdn/slide1.jpg"}]}},
+                     {"video_versions": [{"url": "https://cdn/slide2.mp4"}]},
+                 ]},
             ],
             "more_available": True,
             "next_max_id": "cursor-2",
@@ -173,11 +183,26 @@ def test_fetch_instagram_profile_reel_media_filters_videos_and_paginates(monkeyp
 
     assert len(calls) == 2  # paginated once via next_max_id
     assert "cursor-2" in calls[1]
-    assert [e["id"] for e in entries] == ["REEL1", "REEL2"]  # photo dropped, both reels kept in order
-    assert entries[0]["title"] == "First reel"
-    assert entries[0]["thumbnail"] == "https://cdn/reel1.jpg"
-    assert entries[0]["duration"] == 12.5
-    assert entries[0]["url"] == "https://www.instagram.com/reel/REEL1/"
+    assert [e["id"] for e in entries] == ["PHOTO1", "REEL1", "CAROUSEL1", "REEL2"]
+
+    photo = entries[0]
+    assert photo["kind"] == "image"
+    assert photo["thumbnail"] == "https://cdn/photo1.jpg"
+    assert photo["duration"] is None
+    assert photo["url"] == "https://www.instagram.com/p/PHOTO1/"  # not /reel/ - yt-dlp could never fetch this
+
+    reel = entries[1]
+    assert reel["kind"] == "video"
+    assert reel["title"] == "First reel"
+    assert reel["thumbnail"] == "https://cdn/reel1.jpg"
+    assert reel["duration"] == 12.5
+    assert reel["url"] == "https://www.instagram.com/reel/REEL1/"
+
+    carousel = entries[2]
+    # Its own top-level item carries no image_versions2 - only the first slide does.
+    assert carousel["kind"] == "image"
+    assert carousel["thumbnail"] == "https://cdn/slide1.jpg"
+    assert carousel["url"] == "https://www.instagram.com/p/CAROUSEL1/"
 
 
 def test_fetch_instagram_profile_reel_media_respects_limit(monkeypatch, tmp_path):

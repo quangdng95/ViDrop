@@ -245,6 +245,27 @@ def instagram_check_response(url, media):
     return response
 
 
+def _profile_feed_item(item):
+    # Shapes ONE post from the private feed API (/api/v1/feed/user/<id>/) for
+    # the profile listing - unlike _instagram_item() (which shapes a single
+    # already-chosen slide for the post/carousel resolver), this picks a
+    # single REPRESENTATIVE kind/thumbnail for the whole post, matching what
+    # Instagram's own profile grid shows: one tile per post, carousels included,
+    # not one tile per slide. A carousel's own top-level item usually carries no
+    # image_versions2/video_versions of its own - only its first slide does.
+    def thumbnail_url(node):
+        image = _instagram_best_image(node) if node else None
+        return image.get("url") if image else None
+
+    media_type = item.get("media_type")
+    if media_type == 2:  # a plain video/reel
+        return "video", thumbnail_url(item), item.get("video_duration")
+    first_slide = ((item.get("carousel_media") or [None])[0]) if media_type == 8 else item
+    if first_slide and first_slide.get("video_versions"):
+        return "video", thumbnail_url(first_slide) or thumbnail_url(item), first_slide.get("video_duration")
+    return "image", thumbnail_url(first_slide) or thumbnail_url(item), None
+
+
 def fetch_instagram_profile_instaloader(username, cookiefile_path=None, limit=30):
     L = instaloader.Instaloader(
         download_pictures=False,
@@ -279,37 +300,43 @@ def fetch_instagram_profile_instaloader(username, cookiefile_path=None, limit=30
     for post in posts:
         if count >= limit:
             break
-            
-        if not post.is_video:
-            continue
-            
+
         shortcode = post.shortcode
-        title = post.caption or f"Instagram Reel {shortcode}"
+        kind = "video" if post.is_video else "image"
+        title = post.caption or (f"Instagram Reel {shortcode}" if kind == "video" else f"Instagram Post {shortcode}")
+        # post.url is instaloader's own name for the display/thumbnail image
+        # regardless of post type (video, photo, or carousel cover).
         thumbnail = post.url
-        
+
         entries.append({
             "id": shortcode,
             "title": title,
-            "url": f"https://www.instagram.com/reel/{shortcode}/",
+            "url": f"https://www.instagram.com/{'reel' if kind == 'video' else 'p'}/{shortcode}/",
             "thumbnail": thumbnail,
-            "duration": post.video_duration,
-            "kind": "video",
+            "duration": post.video_duration if kind == "video" else None,
+            "kind": kind,
             "_type": "url",
             "ie_key": "Instagram",
         })
         count += 1
-        
+
     return entries
 
 def fetch_instagram_profile_reel_media(username, cookies_path, limit=30):
-    # Primary profile/reels resolver (2026-07-07). Instagram's public
+    # Primary profile resolver (2026-07-07, widened 2026-10-30 to list every
+    # post, not just video reels - see docs/internal/MISTAKES.md). Instagram's public
     # GraphQL/AJAX surfaces (web_profile_info, ?__a=1, and instaloader's own
     # GraphQL query machinery) now return a post *count* with NO *edges* for
     # a profile the session doesn't own - confirmed live, not assumed (see
     # docs/internal/MISTAKES.md). This goes through the same private www.instagram.com
     # REST host + X-IG-App-ID/X-CSRFToken header pattern already proven to
     # work for fetch_instagram_media (posts/carousels), which Meta still
-    # answers with real items for a logged-in session.
+    # answers with real items for a logged-in session. A photo/carousel post
+    # is listed as one row (its first slide's kind/thumbnail) just like
+    # Instagram's own profile grid; downloading that row re-resolves the full
+    # post through fetch_instagram_media_any and saves that same first slide -
+    # yt-dlp can fetch a video reel directly but can never fetch an Instagram
+    # photo at all, which is why only videos were listed here until now.
     profile_data = fetch_instagram_profile_info(username, cookies_path)
     user_data = (profile_data.get("data") or {}).get("user") or profile_data.get("user")
     user_id = user_data.get("id") if user_data else None
@@ -353,19 +380,21 @@ def fetch_instagram_profile_reel_media(username, cookies_path, limit=30):
 
         pages_fetched += 1
         for item in payload.get("items") or []:
-            if item.get("media_type") != 2:  # videos/reels only - matches the prior is_video filter
-                continue
             code = item.get("code")
             if not code:
                 continue
-            candidates = (item.get("image_versions2") or {}).get("candidates") or []
+            kind, thumbnail, duration = _profile_feed_item(item)
+            caption = (item.get("caption") or {}).get("text")
             entries.append({
                 "id": code,
-                "title": (item.get("caption") or {}).get("text") or f"Instagram Reel {code}",
-                "url": f"https://www.instagram.com/reel/{code}/",
-                "thumbnail": candidates[0].get("url") if candidates else None,
-                "duration": item.get("video_duration"),
-                "kind": "video",
+                "title": caption or (f"Instagram Reel {code}" if kind == "video" else f"Instagram Post {code}"),
+                # /reel/ only resolves a real reel; /p/ works for any post shape
+                # (photo, carousel, video alike) and is what the post/carousel
+                # resolver re-fetches this through at download time for a photo.
+                "url": f"https://www.instagram.com/{'reel' if kind == 'video' else 'p'}/{code}/",
+                "thumbnail": thumbnail,
+                "duration": duration,
+                "kind": kind,
                 "_type": "url",
                 "ie_key": "Instagram",
             })
@@ -452,31 +481,27 @@ def parse_instagram_profile_json(data, username, limit=30):
         if not shortcode or shortcode in seen_shortcodes:
             continue
             
-        # Only take video posts as requested!
-        is_video = node.get("is_video", False)
-        if not is_video:
-            continue
-            
+        kind = "video" if node.get("is_video", False) else "image"
         seen_shortcodes.add(shortcode)
-        
+
         # Extract title/caption
         title = ""
         caption_edges = node.get("edge_media_to_caption", {}).get("edges", [])
         if caption_edges:
             title = caption_edges[0].get("node", {}).get("text", "")
-            
+
         if not title:
-            title = f"Instagram Post {shortcode}"
-            
+            title = f"Instagram Reel {shortcode}" if kind == "video" else f"Instagram Post {shortcode}"
+
         thumbnail = node.get("display_url") or node.get("thumbnail_src")
-        
+
         parsed_entries.append({
             "id": shortcode,
             "title": title,
-            "url": f"https://www.instagram.com/reel/{shortcode}/",
+            "url": f"https://www.instagram.com/{'reel' if kind == 'video' else 'p'}/{shortcode}/",
             "thumbnail": thumbnail,
-            "duration": node.get("video_duration") or None,
-            "kind": "video",
+            "duration": node.get("video_duration") if kind == "video" else None,
+            "kind": kind,
             "_type": "url",
             "ie_key": "Instagram",
         })

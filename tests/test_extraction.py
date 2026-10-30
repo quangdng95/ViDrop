@@ -490,3 +490,37 @@ def test_display_title_shortens_a_caption_for_linkedin_and_x_only():
     assert display_title("X", "name - text https://t.co/abc") == "name - text"
     assert display_title("YouTube", caption) == caption  # other platforms keep their own title
     assert display_title("LinkedIn", "Short title") == "Short title"
+
+
+# ---- flat_playlist_items: kind-aware shaping (Instagram profile photos/carousels) ----
+
+
+def test_flat_playlist_items_passes_through_kind_and_offers_an_image_quality_label():
+    entries = [
+        {"id": "a", "title": "A reel", "url": "https://instagram.com/reel/a/", "duration": 12, "kind": "video"},
+        {"id": "b", "title": "A photo", "url": "https://instagram.com/p/b/", "kind": "image"},
+    ]
+    items = extraction_module.flat_playlist_items(entries)
+    assert items[0]["kind"] == "video" and items[0]["qualities"] == classify.PLAYLIST_QUALITIES
+    assert items[1]["kind"] == "image" and items[1]["qualities"] == ["Image"]
+
+
+def test_flat_playlist_items_does_not_require_duration_for_an_image_item():
+    # An image genuinely has no duration - unlike a hidden/removed video
+    # (also duration=None), that must not mark the row unavailable.
+    entries = [
+        {"id": "a", "title": "A photo", "url": "https://instagram.com/p/a/", "duration": None, "kind": "image"},
+        {"id": "b", "title": "A hidden video", "url": "https://instagram.com/reel/b/", "duration": None, "kind": "video"},
+    ]
+    items = extraction_module.flat_playlist_items(entries)
+    assert items[0]["is_available"] is True
+    assert items[1]["is_available"] is False
+
+
+def test_flat_playlist_items_omits_kind_for_sources_that_never_set_one():
+    # A plain YouTube flat entry carries no "kind" - the field should not
+    # appear at all (not "kind": None), so the frontend's optional `kind?`
+    # keeps meaning "not set" for every other platform, unchanged.
+    items = extraction_module.flat_playlist_items([{"id": "a", "title": "A video", "url": "https://youtu.be/a", "duration": 10}])
+    assert "kind" not in items[0]
+    assert items[0]["qualities"] == classify.PLAYLIST_QUALITIES
