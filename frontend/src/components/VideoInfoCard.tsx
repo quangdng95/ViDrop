@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { Download, Save, Loader2, RefreshCw, FolderOpen, XCircle, AlertCircle, Check } from "lucide-react";
+import { Download, Save, Loader2, RefreshCw, FolderOpen, XCircle, AlertCircle, Check, Image as ImageIcon, Film } from "lucide-react";
 import PlatformTag from "./PlatformTag";
 import PlatformBlock from "./PlatformBlock";
 import ElapsedTimer from "./ElapsedTimer";
@@ -73,122 +73,128 @@ const VideoInfoCard = ({
 
   return (
     <PlatformBlock tone={tone}>
-      <div className={`grid items-start gap-6 md:gap-12 ${info.thumbnail ? "md:grid-cols-[5fr_7fr]" : ""}`}>
-        {info.thumbnail && (
-          <div className="flex flex-col gap-4">
-            <PlatformTag platform={info.platform} />
+      {/* Same compact row grammar as a Bulk link: a small thumbnail beside the
+          title, not a full-width video-sized image - the single result is
+          the main thing on the page, but it still shouldn't push the actual
+          action (Download / progress / Save) below the fold. */}
+      <div className="flex items-start gap-4 sm:gap-5">
+        <div className="flex h-20 w-28 shrink-0 items-center justify-center overflow-hidden border-[3px] border-current bg-black sm:h-24 sm:w-32">
+          {info.thumbnail ? (
             <img
-              className="aspect-video w-full border-[3px] border-current bg-black object-cover"
+              className="h-full w-full object-cover"
               src={info.thumbnail}
               referrerPolicy="no-referrer"
               alt={info.title}
             />
+          ) : info.kind === "image" ? (
+            <ImageIcon className="h-8 w-8" aria-hidden />
+          ) : (
+            <Film className="h-8 w-8" aria-hidden />
+          )}
+        </div>
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <PlatformTag platform={info.platform} />
+          <h3 className="m-0 line-clamp-3 font-display text-[clamp(1.25rem,4.5vw,2rem)] leading-[1.15] font-bold tracking-[-0.03em] break-words [:lang(vi)_&]:leading-[1.25]">
+            {info.title}
+          </h3>
+          {(info.uploader || info.duration) && (
+            <p className="m-0 text-base sm:text-lg">
+              {[info.uploader, info.duration].filter(Boolean).join(" · ")}
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="flex min-w-0 flex-col gap-5">
+        {actionState === "idle" && !autoSave && (
+          <button type="button" onClick={onDownload} className={ctaLight}>
+            <Download className="h-6 w-6" aria-hidden />
+            {t.qualityAction.startDownload}
+          </button>
+        )}
+
+        {isDownloading && (
+          <div role="status" className="flex flex-col gap-4">
+            <p
+              aria-hidden
+              className="m-0 font-display text-[clamp(5rem,22vw,11rem)] leading-[0.85] font-bold tracking-[-0.07em] tabular-nums"
+            >
+              {shownPercent}%
+            </p>
+            <Progress value={percent} aria-label={t.qualityAction.downloading} className={progressSlab} />
+            <p className="m-0 font-display text-xl font-bold">
+              {shownPercent >= 100
+                ? encodePercent !== null
+                  ? t.qualityAction.converting.replace("{percent}", String(Math.round(encodePercent)))
+                  : t.qualityAction.finalizing
+                : `${shownPercent}% ${t.qualityAction.downloading}…`}
+              {shownPercent >= 100 && (
+                <>
+                  {" "}
+                  <ElapsedTimer label={t.qualityAction.elapsedLabel} />
+                </>
+              )}
+            </p>
+            <div>
+              <button type="button" onClick={onCancel} className={ctaGhost}>
+                <XCircle className="h-5 w-5" aria-hidden />
+                {t.downloadProgress.cancelDownload}
+              </button>
+            </div>
           </div>
         )}
 
-        <div className="flex min-w-0 flex-col gap-5">
-          {!info.thumbnail && <PlatformTag platform={info.platform} />}
-          <div className="flex flex-col gap-1.5">
-            <h3 className="m-0 font-display text-[clamp(1.75rem,5vw,3.25rem)] leading-[1.05] font-bold tracking-[-0.04em] break-words [:lang(vi)_&]:leading-[1.15]">
-              {info.title}
-            </h3>
-            {(info.uploader || info.duration) && (
-              <p className="m-0 text-lg">
-                {[info.uploader, info.duration].filter(Boolean).join(" · ")}
-              </p>
-            )}
-          </div>
-
-          {actionState === "idle" && !autoSave && (
-            <button type="button" onClick={onDownload} className={ctaLight}>
-              <Download className="h-6 w-6" aria-hidden />
-              {t.qualityAction.startDownload}
+        {actionState === "done" && autoSave && downloadUrl && (
+          <div>
+            <button type="button" onClick={handleSave} disabled={saveBusy} className={ctaLight}>
+              {saveIcon}
+              {saveLabel}
             </button>
-          )}
+          </div>
+        )}
 
-          {isDownloading && (
-            <div role="status" className="flex flex-col gap-4">
-              <p
-                aria-hidden
-                className="m-0 font-display text-[clamp(5rem,22vw,11rem)] leading-[0.85] font-bold tracking-[-0.07em] tabular-nums"
-              >
-                {shownPercent}%
-              </p>
-              <Progress value={percent} aria-label={t.qualityAction.downloading} className={progressSlab} />
-              <p className="m-0 font-display text-xl font-bold">
-                {shownPercent >= 100
-                  ? encodePercent !== null
-                    ? t.qualityAction.converting.replace("{percent}", String(Math.round(encodePercent)))
-                    : t.qualityAction.finalizing
-                  : `${shownPercent}% ${t.qualityAction.downloading}…`}
-                {shownPercent >= 100 && (
-                  <>
-                    {" "}
-                    <ElapsedTimer label={t.qualityAction.elapsedLabel} />
-                  </>
-                )}
-              </p>
-              <div>
-                <button type="button" onClick={onCancel} className={ctaGhost}>
-                  <XCircle className="h-5 w-5" aria-hidden />
-                  {t.downloadProgress.cancelDownload}
+        {actionState === "done" && !autoSave && (
+          <div role="status" className="flex flex-col gap-5">
+            <p className={`${bigStatus} text-[clamp(2rem,8vw,4.5rem)]`}>
+              <Check className="mr-2 inline h-[0.8em] w-[0.8em] align-baseline" strokeWidth={3} aria-hidden />
+              {t.downloadSuccess.saved}
+            </p>
+            <p className="m-0 text-lg font-medium break-all">{filename || info.title}</p>
+            <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap">
+              {onOpenFolder && (
+                <button type="button" onClick={onOpenFolder} className={ctaLight}>
+                  <FolderOpen className="h-6 w-6" aria-hidden />
+                  {t.downloadSuccess.openFolder}
                 </button>
-              </div>
-            </div>
-          )}
-
-          {actionState === "done" && autoSave && downloadUrl && (
-            <div>
-              <button type="button" onClick={handleSave} disabled={saveBusy} className={ctaLight}>
-                {saveIcon}
-                {saveLabel}
+              )}
+              {downloadUrl && (
+                <button type="button" onClick={handleSave} disabled={saveBusy} className={ctaLight}>
+                  {saveIcon}
+                  {saveLabel}
+                </button>
+              )}
+              <button type="button" onClick={onDownload} className={ctaGhost}>
+                <RefreshCw className="h-5 w-5" aria-hidden />
+                {t.qualityAction.downloadAgain}
               </button>
             </div>
-          )}
+          </div>
+        )}
 
-          {actionState === "done" && !autoSave && (
-            <div role="status" className="flex flex-col gap-5">
-              <p className={`${bigStatus} text-[clamp(2rem,8vw,4.5rem)]`}>
-                <Check className="mr-2 inline h-[0.8em] w-[0.8em] align-baseline" strokeWidth={3} aria-hidden />
-                {t.downloadSuccess.saved}
-              </p>
-              <p className="m-0 text-lg font-medium break-all">{filename || info.title}</p>
-              <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap">
-                {onOpenFolder && (
-                  <button type="button" onClick={onOpenFolder} className={ctaLight}>
-                    <FolderOpen className="h-6 w-6" aria-hidden />
-                    {t.downloadSuccess.openFolder}
-                  </button>
-                )}
-                {downloadUrl && (
-                  <button type="button" onClick={handleSave} disabled={saveBusy} className={ctaLight}>
-                    {saveIcon}
-                    {saveLabel}
-                  </button>
-                )}
-                <button type="button" onClick={onDownload} className={ctaGhost}>
-                  <RefreshCw className="h-5 w-5" aria-hidden />
-                  {t.qualityAction.downloadAgain}
-                </button>
-              </div>
+        {actionState === "fail" && (
+          <div role="alert" className="flex flex-col gap-5">
+            <p className={`${bigStatus} text-[clamp(2rem,8vw,4.5rem)] text-signal`}>
+              <AlertCircle className="mr-2 inline h-[0.8em] w-[0.8em] align-baseline" strokeWidth={3} aria-hidden />
+              {t.playlist.failed}
+            </p>
+            <div>
+              <button type="button" onClick={onDownload} className={ctaSignal}>
+                <RefreshCw className="h-5 w-5" aria-hidden />
+                {t.playlist.retry}
+              </button>
             </div>
-          )}
-
-          {actionState === "fail" && (
-            <div role="alert" className="flex flex-col gap-5">
-              <p className={`${bigStatus} text-[clamp(2rem,8vw,4.5rem)] text-signal`}>
-                <AlertCircle className="mr-2 inline h-[0.8em] w-[0.8em] align-baseline" strokeWidth={3} aria-hidden />
-                {t.playlist.failed}
-              </p>
-              <div>
-                <button type="button" onClick={onDownload} className={ctaSignal}>
-                  <RefreshCw className="h-5 w-5" aria-hidden />
-                  {t.playlist.retry}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </PlatformBlock>
   );
