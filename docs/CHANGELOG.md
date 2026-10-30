@@ -5,7 +5,7 @@ is the raw, engineering-facing history; the app itself also has an in-app **Chan
 (`frontend/src/pages/ChangelogPage.tsx`, header nav) with the same entries written for end users —
 keep both updated together when shipping a user-visible change.
 
-## 2026-10-30 · Instagram: download every post from a profile, not just video reels
+## 2026-10-30 · ViDrop 2.0.6: Instagram downloads every post from a profile, not just video reels
 
 - [x] Pasting an Instagram profile link used to list only its video reels - every photo and carousel
   post was silently dropped, because yt-dlp can fetch a video directly but can never fetch an Instagram

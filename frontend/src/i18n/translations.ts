@@ -614,7 +614,7 @@ const en: Translations = {
     releases: [
       {
         date: "2026-10-30",
-        title: "Instagram: download every post from a profile",
+        title: "ViDrop 2.0.6: Instagram downloads every post from a profile",
         items: [
           "Paste an Instagram profile link and every post is listed now, not just its video reels - photos and multi-photo posts too. Tick the ones you want, or Download All, instead of opening each post one by one.",
         ],
@@ -1214,7 +1214,7 @@ const vi: Translations = {
     releases: [
       {
         date: "30-10-2026",
-        title: "Instagram: tải mọi bài trong một tài khoản",
+        title: "ViDrop 2.0.6: Instagram tải mọi bài trong một tài khoản",
         items: [
           "Dán link một tài khoản Instagram, giờ ViDrop liệt kê mọi bài viết chứ không chỉ video reel nữa - cả ảnh và bài nhiều ảnh. Tick chọn bài muốn tải, hoặc Tải tất cả, thay vì phải mở từng bài một.",
         ],
