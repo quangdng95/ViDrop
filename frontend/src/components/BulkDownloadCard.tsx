@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   Download,
@@ -35,6 +35,10 @@ import type { JobProgress, MediaKind, Platform } from "../types";
 // for a small shared machine, and plenty for the local desktop app too.
 const CONCURRENCY = 3;
 const POLL_INTERVAL_MS = 700;
+// A one-post carousel (Instagram/TikTok Photo Mode/LinkedIn document slides) is
+// always small in practice - this is only a safety cap against ever queuing an
+// unbounded number of downloads from a single pasted line.
+const MAX_AUTO_EXPAND_ITEMS = 50;
 
 type RowStatus = "queued" | "checking" | "downloading" | "done" | "error" | "skipped";
 
@@ -57,7 +61,15 @@ interface BulkRow {
   // False for a line that was never a real downloadable link (not a URL, or a
   // playlist/channel) - retrying it would just fail the same way again.
   retryable: boolean;
+  // Set for a row expanded out of a multi-item carousel/slideshow link (one row per
+  // slide) - the parent link's /api/check already resolved this exact target, so
+  // processRow downloads it directly instead of re-checking the (shared) URL.
+  preResolved?: { dlUrl: string; quality: string; entryIndex?: number };
 }
+
+type ProcessOutcome =
+  | { outcome: "done" | "error" | "skipped" | "cancelled" }
+  | { outcome: "expanded"; expanded: BulkRow[] };
 
 const URL_LINE = /^https?:\/\/\S+$/i;
 
@@ -118,13 +130,12 @@ const pollJob = (jobId: string, isCancelled: () => boolean, onUpdate: (p: JobPro
   });
 
 interface BulkDownloadCardProps {
-  // Fires whenever "is there anything to show here" flips, so the page can keep the hero tagline's
-  // visibility rule symmetric between the two tabs (Jakob's Law: the same "empty vs. not" behavior the
-  // single-link tab already has, not a surprise special case for Bulk).
-  onEmptyStateChange?: (empty: boolean) => void;
+  // Fires when a link this tab can't handle (a real multi-post playlist/channel) should be
+  // handed to the Single-link tab instead, so the user doesn't have to copy-paste it by hand.
+  onMoveToSingle?: (url: string) => void;
 }
 
-const BulkDownloadCard = ({ onEmptyStateChange }: BulkDownloadCardProps) => {
+const BulkDownloadCard = ({ onMoveToSingle }: BulkDownloadCardProps) => {
   const { t } = useLanguage();
   const [text, setText] = useState("");
   const [rows, setRows] = useState<BulkRow[]>([]);
@@ -133,12 +144,6 @@ const BulkDownloadCard = ({ onEmptyStateChange }: BulkDownloadCardProps) => {
   const activeJobIdsRef = useRef<Set<string>>(new Set());
 
   const parsedCount = useMemo(() => parseLines(text).filter((line) => URL_LINE.test(line)).length, [text]);
-
-  const isEmpty = text.trim() === "" && rows.length === 0;
-  useEffect(() => {
-    onEmptyStateChange?.(isEmpty);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEmpty]);
 
   const updateRow = (id: string, patch: Partial<BulkRow>) =>
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
@@ -156,19 +161,11 @@ const BulkDownloadCard = ({ onEmptyStateChange }: BulkDownloadCardProps) => {
 
   // Resolves one row's link, starts its download and waits for it to finish.
   // Returns how it ended, so the caller can tally a running save/fail count
-  // without re-reading React state (which lags the async work by a render).
-  const processRow = async (row: BulkRow): Promise<"done" | "error" | "skipped" | "cancelled"> => {
-    if (cancelledRef.current) return "cancelled";
-    updateRow(row.id, { status: "checking", errorMessage: null });
-    let check;
-    try {
-      check = await api.checkLink(row.url);
-    } catch (e) {
-      if (cancelledRef.current) return "cancelled";
-      updateRow(row.id, { status: "error", errorMessage: (e as Error).message });
-      return "error";
-    }
-    if (cancelledRef.current) return "cancelled";
+  // without re-reading React state (which lags the async work by a render) -
+  // or, for a multi-slide carousel, the rows it expanded into so the caller
+  // can queue those instead.
+  const processRow = async (row: BulkRow): Promise<ProcessOutcome> => {
+    if (cancelledRef.current) return { outcome: "cancelled" };
 
     let title: string;
     let platform: Platform;
@@ -178,43 +175,102 @@ const BulkDownloadCard = ({ onEmptyStateChange }: BulkDownloadCardProps) => {
     let dlUrl: string;
     let entryIndex: number | undefined;
 
-    if (check.type === "video") {
-      title = check.title;
-      platform = check.platform;
-      thumbnail = check.thumbnail;
-      quality = check.qualities[0] ?? "Best";
-      kind = check.kind;
-      dlUrl = row.url;
-    } else if (check.type === "playlist" && check.items.length === 1) {
-      const item = check.items[0];
-      title = item.title;
-      platform = check.platform;
-      thumbnail = item.thumbnail;
-      quality = item.qualities[0] ?? "Best";
-      kind = item.kind;
-      dlUrl = item.url ?? row.url;
-      entryIndex = item.url ? undefined : item.entry_index;
+    if (row.preResolved) {
+      // Already resolved while expanding the parent carousel/slideshow link - no
+      // need to /api/check the (shared) URL again.
+      title = row.title ?? row.url;
+      platform = row.platform as Platform;
+      thumbnail = row.thumbnail;
+      kind = row.kind;
+      quality = row.preResolved.quality;
+      dlUrl = row.preResolved.dlUrl;
+      entryIndex = row.preResolved.entryIndex;
+      updateRow(row.id, { status: "downloading" });
     } else {
-      updateRow(row.id, {
-        status: "skipped",
-        title: check.type === "playlist" ? check.title || row.url : row.url,
-        platform: check.platform,
-        errorMessage: t.bulk.playlistUnsupported,
-        retryable: false,
-      });
-      return "skipped";
-    }
+      updateRow(row.id, { status: "checking", errorMessage: null });
+      let check;
+      try {
+        check = await api.checkLink(row.url);
+      } catch (e) {
+        if (cancelledRef.current) return { outcome: "cancelled" };
+        updateRow(row.id, { status: "error", errorMessage: (e as Error).message });
+        return { outcome: "error" };
+      }
+      if (cancelledRef.current) return { outcome: "cancelled" };
 
-    updateRow(row.id, { status: "downloading", title, platform, thumbnail, kind });
+      if (check.type === "video") {
+        title = check.title;
+        platform = check.platform;
+        thumbnail = check.thumbnail;
+        quality = check.qualities[0] ?? "Best";
+        kind = check.kind;
+        dlUrl = row.url;
+      } else if (check.type === "playlist" && check.items.length === 1) {
+        const item = check.items[0];
+        title = item.title;
+        platform = check.platform;
+        thumbnail = item.thumbnail;
+        quality = item.qualities[0] ?? "Best";
+        kind = item.kind;
+        dlUrl = item.url ?? row.url;
+        entryIndex = item.url ? undefined : item.entry_index;
+      } else if (
+        check.type === "playlist" &&
+        check.items.length > 1 &&
+        check.items.length <= MAX_AUTO_EXPAND_ITEMS &&
+        // Every item shares the SAME url and is addressed by entry_index: a single
+        // post's slides (Instagram/Threads/LinkedIn carousel, TikTok Photo Mode) -
+        // never an actual multi-post playlist/channel (those items each carry
+        // their own distinct url, and can run into the hundreds).
+        check.items.every((item) => !item.url)
+      ) {
+        const expanded: BulkRow[] = check.items.map((item, i) => ({
+          id: `${row.id}-${i}`,
+          url: row.url,
+          status: "queued",
+          title: item.title,
+          platform: check.platform,
+          thumbnail: item.thumbnail,
+          kind: item.kind,
+          percent: 0,
+          jobId: null,
+          filename: null,
+          errorMessage: null,
+          retryable: true,
+          preResolved: {
+            dlUrl: row.url,
+            quality: item.qualities[0] ?? "Best",
+            entryIndex: item.entry_index,
+          },
+        }));
+        setRows((prev) => {
+          const idx = prev.findIndex((r) => r.id === row.id);
+          if (idx === -1) return prev;
+          return [...prev.slice(0, idx), ...expanded, ...prev.slice(idx + 1)];
+        });
+        return { outcome: "expanded", expanded };
+      } else {
+        updateRow(row.id, {
+          status: "skipped",
+          title: check.type === "playlist" ? check.title || row.url : row.url,
+          platform: check.platform,
+          errorMessage: t.bulk.playlistUnsupported,
+          retryable: false,
+        });
+        return { outcome: "skipped" };
+      }
+
+      updateRow(row.id, { status: "downloading", title, platform, thumbnail, kind });
+    }
 
     let jobId: string;
     try {
       const started = await api.startDownload(dlUrl, title, quality, entryIndex);
       jobId = started.job_id;
     } catch (e) {
-      if (cancelledRef.current) return "cancelled";
+      if (cancelledRef.current) return { outcome: "cancelled" };
       updateRow(row.id, { status: "error", errorMessage: (e as Error).message });
-      return "error";
+      return { outcome: "error" };
     }
     updateRow(row.id, { jobId });
     activeJobIdsRef.current.add(jobId);
@@ -233,14 +289,14 @@ const BulkDownloadCard = ({ onEmptyStateChange }: BulkDownloadCardProps) => {
         downloadUrl: isLocal() ? undefined : `/api/download-file/${jobId}`,
       });
       recordDownload({ url: row.url, title, platform, thumbnail });
-      return "done";
+      return { outcome: "done" };
     }
     if (final.status === "cancelled") {
       updateRow(row.id, { status: "error", errorMessage: t.bulk.cancelled });
-      return "cancelled";
+      return { outcome: "cancelled" };
     }
     updateRow(row.id, { status: "error", errorMessage: final.text || t.bulk.genericFailed });
-    return "error";
+    return { outcome: "error" };
   };
 
   const runAll = async (queue: BulkRow[]) => {
@@ -255,9 +311,10 @@ const BulkDownloadCard = ({ onEmptyStateChange }: BulkDownloadCardProps) => {
         if (cancelledRef.current) return;
         const index = cursor++;
         if (index >= queue.length) return;
-        const outcome = await processRow(queue[index]);
-        if (outcome === "done") saved++;
-        else if (outcome === "error") failed++;
+        const result = await processRow(queue[index]);
+        if (result.outcome === "done") saved++;
+        else if (result.outcome === "error") failed++;
+        else if (result.outcome === "expanded") queue.push(...result.expanded);
       }
     };
     await Promise.all(Array.from({ length: Math.min(CONCURRENCY, queue.length) }, worker));
@@ -471,6 +528,7 @@ const BulkDownloadCard = ({ onEmptyStateChange }: BulkDownloadCardProps) => {
                 position={index + 1}
                 numWidth={numWidth}
                 onRetry={() => handleRetryRow(row.id)}
+                onMoveToSingle={onMoveToSingle ? () => onMoveToSingle(row.url) : undefined}
               />
             ))}
           </ul>
@@ -515,9 +573,10 @@ interface BulkRowItemProps {
   position: number;
   numWidth: number;
   onRetry: () => void;
+  onMoveToSingle?: () => void;
 }
 
-const BulkRowItem = ({ row, position, numWidth, onRetry }: BulkRowItemProps) => {
+const BulkRowItem = ({ row, position, numWidth, onRetry, onMoveToSingle }: BulkRowItemProps) => {
   const { t } = useLanguage();
   const formattedNum = String(position).padStart(numWidth, "0");
 
@@ -582,6 +641,11 @@ const BulkRowItem = ({ row, position, numWidth, onRetry }: BulkRowItemProps) => 
               <button type="button" className={rowButton} onClick={onRetry}>
                 <RefreshCw className="h-5 w-5" aria-hidden />
                 {t.playlist.retry}
+              </button>
+            )}
+            {row.status === "skipped" && onMoveToSingle && (
+              <button type="button" className={rowButton} onClick={onMoveToSingle}>
+                {t.bulk.openInSingle}
               </button>
             )}
           </div>

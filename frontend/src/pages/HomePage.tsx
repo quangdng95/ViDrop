@@ -49,9 +49,6 @@ type InputMode = "single" | "bulk";
 const HomePage = ({ onNavigate: _onNavigate, pendingUrl = null, onPendingUrlConsumed }: HomePageProps) => {
   const { t } = useLanguage();
   const [mode, setMode] = useState<InputMode>("single");
-  // Bulk mode's own "nothing pasted/resolved yet" flag, reported up so the hero tagline's visibility
-  // rule stays symmetric between the two tabs instead of only ever hiding for Bulk.
-  const [bulkEmpty, setBulkEmpty] = useState(true);
   const [url, setUrl] = useState("");
   const [checking, setChecking] = useState(false);
   const [checkSeconds, setCheckSeconds] = useState(0);
@@ -270,6 +267,13 @@ const HomePage = ({ onNavigate: _onNavigate, pendingUrl = null, onPendingUrlCons
     }
   };
 
+  // A link Bulk mode can't handle on its own (a real multi-post playlist/channel) -
+  // send it to the Single-link tab instead of making the user copy-paste it by hand.
+  const handleMoveToSingle = (link: string) => {
+    handleModeChange("single");
+    setUrl(link);
+  };
+
   const playlistSingle: PlaylistItem | null =
     checkResult?.type === "playlist" && checkResult.items.length === 1 ? checkResult.items[0] : null;
 
@@ -484,27 +488,21 @@ const HomePage = ({ onNavigate: _onNavigate, pendingUrl = null, onPendingUrlCons
     inputStatus = "result";
   }
 
-  // The hero's giant tagline is only worth the scroll space before there's
-  // anything to act on - once a single link is typed/pasted, or Bulk mode is
-  // open, the URL bar and its results should be the first thing on screen.
-  const showHero = mode === "single" ? !url.trim() : bulkEmpty;
-
   return (
     <div className="w-full">
       <div className="w-full flex flex-col gap-6">
-          {/* Hero: kept short so the URL bar sits inside the first mobile screen. */}
-          {showHero && (
-            <div className="page-container flex flex-col items-start gap-3 pt-2 text-left md:pt-6">
-              <h1 className="m-0 font-display text-[clamp(2.75rem,14vw,10.5rem)] leading-[0.9] [:lang(vi)_&]:leading-[1.02] font-bold tracking-[-0.06em] text-ink uppercase">
-                {t.header.home.taglineLines.map((line) => (
-                  <span key={line} className="block">
-                    {line}
-                  </span>
-                ))}
-              </h1>
-              <p className="m-0 max-w-[40em] text-[1.1875rem] leading-snug text-balance text-ink">{t.header.home.sub}</p>
-            </div>
-          )}
+          {/* Hero: always mounted (not just before a link is pasted/checked) so the page's
+              title heading never pops in/out and shifts the layout underneath it. */}
+          <div className="page-container flex flex-col items-start gap-3 pt-2 text-left md:pt-6">
+            <h1 className="m-0 font-display text-[clamp(2.75rem,14vw,10.5rem)] leading-[0.9] [:lang(vi)_&]:leading-[1.02] font-bold tracking-[-0.06em] text-ink uppercase">
+              {t.header.home.taglineLines.map((line) => (
+                <span key={line} className="block">
+                  {line}
+                </span>
+              ))}
+            </h1>
+            <p className="m-0 max-w-[40em] text-[1.1875rem] leading-snug text-balance text-ink">{t.header.home.sub}</p>
+          </div>
           <div className="page-container flex flex-col gap-4">
             <Tabs value={mode} onValueChange={(val) => handleModeChange(val as InputMode)}>
               <TabsList className="h-auto max-w-full gap-0 overflow-x-auto rounded-none border-[3px] border-ink bg-transparent p-0">
@@ -542,7 +540,7 @@ const HomePage = ({ onNavigate: _onNavigate, pendingUrl = null, onPendingUrlCons
                 onKeepCodecChange={checkResult?.type === "video" || playlistSingle ? setKeepCodec : undefined}
               />
             ) : (
-              <BulkDownloadCard onEmptyStateChange={setBulkEmpty} />
+              <BulkDownloadCard onMoveToSingle={handleMoveToSingle} />
             )}
           </div>
 
@@ -625,7 +623,7 @@ const HomePage = ({ onNavigate: _onNavigate, pendingUrl = null, onPendingUrlCons
             </AnimatedSection>
           )}
 
-          {checkResult?.type === "playlist" && checkResult.items && checkResult.items.length !== 1 && (
+          {mode === "single" && checkResult?.type === "playlist" && checkResult.items && checkResult.items.length !== 1 && (
             <PlaylistItemsCard
               title={checkResult.title || ""}
               platform={checkResult.platform}
@@ -643,7 +641,7 @@ const HomePage = ({ onNavigate: _onNavigate, pendingUrl = null, onPendingUrlCons
             />
           )}
 
-          {selectedItem && (
+          {mode === "single" && selectedItem && (
             <VideoInfoCard
               info={selectedItem}
               actionState={downloadState}

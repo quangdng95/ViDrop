@@ -48,6 +48,7 @@ export interface Translations {
     cancelled: string; // per-row error after Cancel is pressed
     genericFailed: string; // per-row fallback when the server gave no message
     newBatch: string; // button once a batch finished: clear the list and paste a new one
+    openInSingle: string; // per-row action on an unsupported link: send it to the Single-link tab instead
   };
   playlist: {
     heading: string;
@@ -272,6 +273,7 @@ const en: Translations = {
     cancelled: "Cancelled",
     genericFailed: "Download failed",
     newBatch: "Paste new links",
+    openInSingle: "Open in Single",
   },
   playlist: {
     heading: "Select items to download",
@@ -875,6 +877,7 @@ const vi: Translations = {
     cancelled: "Đã huỷ",
     genericFailed: "Tải xuống thất bại",
     newBatch: "Dán link mới",
+    openInSingle: "Mở ở chế độ 1 Link",
   },
   playlist: {
     heading: "Chọn các mục để tải",

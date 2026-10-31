@@ -94,19 +94,24 @@ describe("BulkDownloadCard", () => {
     expect(textarea).toHaveValue("");
   });
 
-  it("skips a playlist/channel link instead of expanding it", async () => {
+  it("skips a real multi-post playlist/channel link (each item has its own url) instead of expanding it, and offers Open in Single", async () => {
     mockedApi.checkLink.mockResolvedValue({
       type: "playlist",
       platform: "YouTube",
       title: "A whole channel",
       items: [
-        { id: "1", title: "Item 1", thumbnail: null, duration: null, qualities: ["Best"] },
-        { id: "2", title: "Item 2", thumbnail: null, duration: null, qualities: ["Best"] },
+        { id: "1", title: "Item 1", thumbnail: null, duration: null, qualities: ["Best"], position: 1, url: "https://youtube.com/watch?v=1" },
+        { id: "2", title: "Item 2", thumbnail: null, duration: null, qualities: ["Best"], position: 2, url: "https://youtube.com/watch?v=2" },
       ],
     });
 
+    const onMoveToSingle = vi.fn();
     const user = userEvent.setup({ delay: null });
-    renderCard();
+    render(
+      <LanguageProvider>
+        <BulkDownloadCard onMoveToSingle={onMoveToSingle} />
+      </LanguageProvider>
+    );
 
     await user.click(screen.getByPlaceholderText("Paste multiple links, one per line"));
     await user.paste("https://youtube.com/playlist?list=PLx");
@@ -114,6 +119,48 @@ describe("BulkDownloadCard", () => {
 
     await screen.findByText(/paste it on its own to pick items/i);
     expect(mockedApi.startDownload).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: /open in single/i }));
+    expect(onMoveToSingle).toHaveBeenCalledWith("https://youtube.com/playlist?list=PLx");
+  });
+
+  it("expands a multi-slide carousel (items share one url, addressed by entry_index) and downloads every slide", async () => {
+    mockedApi.checkLink.mockResolvedValue({
+      type: "playlist",
+      platform: "Instagram",
+      title: "",
+      items: [
+        { id: null, title: "Slide 1", thumbnail: null, duration: null, qualities: ["Image"], kind: "image", entry_index: 1 },
+        { id: null, title: "Slide 2", thumbnail: null, duration: null, qualities: ["Image"], kind: "image", entry_index: 2 },
+      ],
+    });
+    mockedApi.startDownload.mockImplementation((_url, title) =>
+      Promise.resolve({ job_id: title === "Slide 1" ? "job-1" : "job-2" })
+    );
+    mockedApi.getProgress.mockResolvedValue({ status: "done", percent: 100, text: "", filename: "slide.jpg" });
+
+    const user = userEvent.setup({ delay: null });
+    renderCard();
+
+    await user.click(screen.getByPlaceholderText("Paste multiple links, one per line"));
+    await user.paste("https://www.instagram.com/p/ABC123/");
+    await user.click(screen.getByRole("button", { name: /download all/i }));
+
+    // A single pasted link only spins up one worker, so its expanded slides download
+    // one after another (each a real 700ms poll tick) rather than in parallel.
+    await waitFor(() => expect(screen.getAllByText("Downloaded")).toHaveLength(2), { timeout: 3000 });
+    expect(mockedApi.startDownload).toHaveBeenCalledWith(
+      "https://www.instagram.com/p/ABC123/",
+      "Slide 1",
+      "Image",
+      1
+    );
+    expect(mockedApi.startDownload).toHaveBeenCalledWith(
+      "https://www.instagram.com/p/ABC123/",
+      "Slide 2",
+      "Image",
+      2
+    );
   });
 
   it("cancels every in-flight job and marks pending rows as cancelled", async () => {
@@ -197,22 +244,4 @@ describe("BulkDownloadCard", () => {
     expect(mockedPreparePlainFile).not.toHaveBeenCalled();
   });
 
-  it("reports its empty state so the page can show/hide the hero the same way the single-link tab does", async () => {
-    const onEmptyStateChange = vi.fn();
-    const user = userEvent.setup({ delay: null });
-    render(
-      <LanguageProvider>
-        <BulkDownloadCard onEmptyStateChange={onEmptyStateChange} />
-      </LanguageProvider>
-    );
-
-    expect(onEmptyStateChange).toHaveBeenLastCalledWith(true);
-
-    await user.click(screen.getByPlaceholderText("Paste multiple links, one per line"));
-    await user.paste("https://youtube.com/watch?v=a");
-    await waitFor(() => expect(onEmptyStateChange).toHaveBeenLastCalledWith(false));
-
-    await user.clear(screen.getByPlaceholderText("Paste multiple links, one per line"));
-    await waitFor(() => expect(onEmptyStateChange).toHaveBeenLastCalledWith(true));
-  });
 });
