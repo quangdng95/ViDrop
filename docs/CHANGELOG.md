@@ -5,6 +5,12 @@ is the raw, engineering-facing history; the app itself also has an in-app **Chan
 (`frontend/src/pages/ChangelogPage.tsx`, header nav) with the same entries written for end users —
 keep both updated together when shipping a user-visible change.
 
+Web (`cloud.nguyenduyquang.com`) ships continuously, straight off `main`; the Mac app only picks up
+a batch of commits whenever it's next built and tagged. A section whose heading already names a
+version (`ViDrop 2.0.x`) was built and tagged that day. A section with no version in its own title
+shipped to web immediately but only reached the Mac app later — its heading now carries
+**`· first Mac build: vX.Y.Z`**, the earliest tagged Mac release whose build included that commit.
+
 ## 2026-10-30 · ViDrop 2.0.6: Instagram downloads every post from a profile, not just video reels
 
 - [x] Pasting an Instagram profile link used to list only its video reels - every photo and carousel
@@ -39,7 +45,7 @@ keep both updated together when shipping a user-visible change.
   `data-active:hover:text-on-ink` to both the quality selector and the new mode toggle. Root-caused with Chrome
   DevTools Protocol (`CSS.getMatchedStylesForNode`) after `document.styleSheets` introspection gave false negatives.
 
-## 2026-10-23 · Threads works without a login again
+## 2026-10-23 · Threads works without a login again · first Mac build: v2.0.5
 
 - [x] Threads started sending even a valid browser session to the login page when the private API
   (`/api/v1/media/<id>/info/`) is called, so every Threads link failed ("a browser signed in to Threads is required"),
@@ -66,7 +72,7 @@ keep both updated together when shipping a user-visible change.
 - [x] Classification in `classify.py` (`PINTEREST_BOARD`/`PINTEREST_PIN`/`PINTEREST_UNSUPPORTED`), routes in both
   `backend/app.py` and `remote_web/routes/media.py`; frontend: Pinterest platform tag and tile.
 
-## 2026-10-14 · Web: new primary host `cloud.nguyenduyquang.com`
+## 2026-10-14 · Web: new primary host `cloud.nguyenduyquang.com` · first Mac build: v2.0.4
 
 - [x] The web version is served on `cloud.nguyenduyquang.com` and, side by side, the old `cloud.southframevn.com`
   (both hostnames are in the tunnel's `~/.cloudflared/config.yml` on the VM: the tunnel is locally managed, so
@@ -103,7 +109,7 @@ keep both updated together when shipping a user-visible change.
   encoder rule is unchanged (x86_64 -> VideoToolbox).
 - [x] The Mac app gets "Clear cache and saved data" (added to the web version earlier the same day).
 
-## 2026-10-14 · Settings: Clear cache and saved data
+## 2026-10-14 · Settings: Clear cache and saved data · first Mac build: v2.0.3
 
 - [x] **One action to clear old data** (Settings, web and Mac app): `frontend/src/lib/clearData.ts` empties
   localStorage, sessionStorage, Cache Storage, service workers, IndexedDB and the cookies the page can see,
@@ -114,7 +120,7 @@ keep both updated together when shipping a user-visible change.
   `config.json` are never touched. Limits: it cannot clear the browser's own HTTP cache directly or an icon
   iOS already copied to the Home Screen (remove and re-add that one).
 
-## 2026-10-14 · Web update: Home Screen icon (after 2.0.2)
+## 2026-10-14 · Web update: Home Screen icon (after 2.0.2) · first Mac build: v2.0.3
 
 ### Fixed
 
@@ -137,7 +143,7 @@ keep both updated together when shipping a user-visible change.
 - [x] README Roadmap rewritten to the real open items (EN + VI); `docs/PLATFORM_SUPPORT.md` states that
   seven of eight platforms are verified and RedNote is not.
 
-## 2026-10-13 · Web update (after 2.0.1)
+## 2026-10-13 · Web update (after 2.0.1) · first Mac build: v2.0.2
 
 ### Fixed
 
@@ -231,7 +237,7 @@ keep both updated together when shipping a user-visible change.
 - YouTube may need the Chrome sign-in above; an occasional `403` on a download goes away on retry.
 - TikTok depends on tikwm.com for Photo Mode and as the fallback for videos.
 
-## 2026-10-13
+## 2026-10-13 · Rename to ViDrop, V3 UI overhaul · first Mac build: v2.0.0
 
 ### Changed
 
@@ -276,7 +282,7 @@ keep both updated together when shipping a user-visible change.
 - [x] Raw yt-dlp text is never shown: "Unsupported URL" and "Unable to extract video" map to friendly
   EN/VI messages (`backend/messages.py`, `describe_extraction_error`).
 
-## 2026-10-06
+## 2026-10-06 · History tab, LinkedIn documents, RedNote resolver · first Mac build: v2.0.0
 
 ### Added
 
@@ -310,7 +316,7 @@ keep both updated together when shipping a user-visible change.
   server refuses anything that isn't a cookie jar and writes atomically.
 - [x] Threads now uses the uploaded cookie file (a headless VM has no browser to extract from).
 
-## 2026-09-25
+## 2026-09-25 · English/Vietnamese switch, cloud Facebook fix · first Mac build: v2.0.0
 
 ### Added — English / Vietnamese switch
 
@@ -339,7 +345,7 @@ keep both updated together when shipping a user-visible change.
 - [x] The single-video progress label shows "Processing video…" at 100% instead of a frozen
   "100% Downloading…".
 
-## 2026-09-18
+## 2026-09-18 · TikTok & download reliability fixes · first Mac build: v2.0.0
 
 ### Fixed — TikTok & download reliability
 
@@ -347,7 +353,7 @@ keep both updated together when shipping a user-visible change.
 - [x] Fixed the per-row "Retry" action on a failed download returning a 404 instead of retrying.
 - [x] Fixed bulk save-to-Photos (mobile Share Sheet flow) only saving the first item of a batch.
 
-## 2026-09-16
+## 2026-09-16 · Remote automation & mobile · first Mac build: v2.0.0
 
 ### Added — Remote automation & mobile
 
@@ -364,7 +370,7 @@ keep both updated together when shipping a user-visible change.
 - [x] Fixed YouTube downloads breaking after YouTube rolled out its newer SABR anti-bot streaming
   protocol.
 
-## 2026-08-29 → 2026-09-10
+## 2026-08-29 → 2026-09-10 · Remote Web Access · first Mac build: v2.0.0
 
 ### Added — Remote Web Access (new capability)
 
@@ -379,7 +385,7 @@ keep both updated together when shipping a user-visible change.
   auto-extract cookies from.
 - [x] Linux ffmpeg resolution via `PATH` for cloud portability (previously macOS-only lookup).
 
-## 2026-08-29 → 2026-08-30
+## 2026-08-29 → 2026-08-30 · TikTok Photo Mode · first Mac build: v2.0.0
 
 ### Added — TikTok Photo Mode
 
@@ -397,7 +403,7 @@ keep both updated together when shipping a user-visible change.
 - [x] `api.ts`'s `request()` no longer leaks a raw JSON-parse error to the UI on a malformed
   response.
 
-## 2026-07-10
+## 2026-07-10 · Instagram/Threads diagnostics, self-serve logs · first Mac build: v2.0.0
 
 A full round of live bug fixes driven by real user reports and diagnostic logs from a clean Intel Mac, followed by a UI polish pass against the Figma design.
 

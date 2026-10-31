@@ -93,56 +93,66 @@ def extract_video_info(cls):
         username = cls.username
         if not username:
             raise Exception("Cannot extract Instagram username from URL")
-            
-        cookies_path = config.get_cookies_path()
-        auto_cookiefile = None
-        # Fall back to auto browser cookies extraction if manual cookies settings not valid/empty
-        if not (cookies_path and config.cookies_status_for(cookies_path) == "valid"):
-            candidates = cookies.instagram_cookiefile_candidates()
-            if candidates:
-                auto_cookiefile = candidates[0]
-                cookies._cleanup_temp_cookiefiles(candidates[1:])
-                cookies_path = auto_cookiefile
-                
+
+        # Try every candidate account (manual Settings cookies.txt, if valid,
+        # then every logged-in browser profile) in turn, same as
+        # fetch_instagram_media_any already does for a single post/carousel -
+        # Instagram's private feed/web-profile endpoints throttle per
+        # account/session (confirmed live 2026-10-30, docs/internal/MISTAKES.md: a 429
+        # hit both the VM and the Mac, i.e. the same synced account, not a
+        # single machine's IP), so a second logged-in account can succeed
+        # where the first one is currently rate-limited. Previously this only
+        # ever tried the first candidate found and gave up.
+        candidates = cookies.instagram_cookiefile_candidates()
+        # effective_item_limit() already holds an Instagram profile to
+        # INSTAGRAM_PROFILE_LIST_CAP, and never lets "All" (0) become an
+        # unbounded number of sequential API requests.
+        limit = item_limit
+        entries = []
+        last_error = None
         try:
-            print(f"[debug] Resolving Instagram profile for username: {username} using cookies: {cookies_path}", flush=True)
-            entries = []
-            # effective_item_limit() already holds an Instagram profile to
-            # INSTAGRAM_PROFILE_LIST_CAP, and never lets "All" (0) become an
-            # unbounded number of sequential API requests.
-            limit = item_limit
-            try:
-                # Primary method: Instagram's own private feed API (2026-07-07).
-                # web_profile_info/GraphQL/instaloader all now return a post
-                # *count* with no *edges* for a profile the session doesn't
-                # own - confirmed live, see docs/internal/MISTAKES.md - so this must go
-                # first, not last.
-                entries = instagram.fetch_instagram_profile_reel_media(username, cookies_path, limit=limit)
-            except Exception as e_primary:
-                # Only try fallbacks if primary totally failed (not just slow).
-                # Each fallback adds up to 15s timeout, so keep the chain short.
-                print(f"[debug] Private feed API failed: {e_primary}. Trying Web Profile API fallback...", flush=True)
-                data = None
+            for cookies_path in candidates or [None]:
+                print(f"[debug] Resolving Instagram profile for username: {username} using cookies: {cookies_path}", flush=True)
                 try:
-                    data = instagram.fetch_instagram_profile_info(username, cookies_path)
-                except Exception as e1:
-                    print(f"[debug] fetch_instagram_profile_info failed: {e1}. Trying Graph API fallback...", flush=True)
                     try:
-                        data = instagram.fetch_instagram_profile_info_fallback(username, cookies_path)
-                    except Exception as e2:
-                        print(f"[debug] All Instagram profile fallbacks failed: {e2}", flush=True)
-                        raise Exception(
-                            f"Failed to fetch Instagram profile: {e_primary} / {e1} / {e2}"
-                        )
-                entries = instagram.parse_instagram_profile_json(data, username, limit=limit)
+                        # Primary method: Instagram's own private feed API (2026-07-07).
+                        # web_profile_info/GraphQL/instaloader all now return a post
+                        # *count* with no *edges* for a profile the session doesn't
+                        # own - confirmed live, see docs/internal/MISTAKES.md - so this must go
+                        # first, not last.
+                        entries = instagram.fetch_instagram_profile_reel_media(username, cookies_path, limit=limit)
+                    except Exception as e_primary:
+                        # Only try fallbacks if primary totally failed (not just slow).
+                        # Each fallback adds up to 15s timeout, so keep the chain short.
+                        print(f"[debug] Private feed API failed: {e_primary}. Trying Web Profile API fallback...", flush=True)
+                        data = None
+                        try:
+                            data = instagram.fetch_instagram_profile_info(username, cookies_path)
+                        except Exception as e1:
+                            print(f"[debug] fetch_instagram_profile_info failed: {e1}. Trying Graph API fallback...", flush=True)
+                            try:
+                                data = instagram.fetch_instagram_profile_info_fallback(username, cookies_path)
+                            except Exception as e2:
+                                raise Exception(
+                                    f"Failed to fetch Instagram profile: {e_primary} / {e1} / {e2}"
+                                )
+                        entries = instagram.parse_instagram_profile_json(data, username, limit=limit)
+                    if entries:
+                        break
+                except Exception as e:
+                    last_error = e
+                    entries = []
+                    print(f"[debug] Instagram profile resolution failed for this account: {e}. Trying next account if any...", flush=True)
+                    continue
 
             if not entries:
                 # Never a silent empty state (design-principles §3): every
-                # method above either raises or returns entries here, so an
-                # empty list means Instagram genuinely answered with zero
-                # videos for every method tried - surface that, don't render
-                # a confusing "0 items" playlist.
-                raise Exception(f"No public video posts/reels found for Instagram profile {username}")
+                # candidate account either raised or returned entries here, so
+                # an empty result means Instagram genuinely answered with zero
+                # videos, or every account tried hit the same error (e.g. a
+                # rate limit) - surface that, don't render a confusing "0
+                # items" playlist.
+                raise last_error or Exception(f"No public video posts/reels found for Instagram profile {username}")
 
             # Format as playlist/entries
             return {
@@ -153,8 +163,7 @@ def extract_video_info(cls):
                 "thumbnail": entries[0].get("thumbnail") if entries else None,
             }
         finally:
-            if auto_cookiefile:
-                cookies._cleanup_temp_cookiefiles([auto_cookiefile])
+            cookies._cleanup_temp_cookiefiles(candidates)
 
     # Runs in-process via the yt-dlp Python package instead of spawning the
     # vendored PyInstaller-frozen ./yt-dlp binary: that binary self-extracts

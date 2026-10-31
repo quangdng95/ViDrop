@@ -382,6 +382,39 @@ def test_extract_video_info_profile_raises_instead_of_silent_empty_playlist(monk
         extraction_module.extract_video_info(cls)
 
 
+def test_extract_video_info_profile_tries_the_next_account_when_one_is_rate_limited(monkeypatch):
+    # 2026-10-31: the profile resolver used to try only the FIRST candidate
+    # account and give up, unlike fetch_instagram_media_any (single post/
+    # carousel) which already tries every logged-in account. Confirmed live
+    # that Instagram's private feed/web-profile endpoints throttle per
+    # account/session, not just per machine IP (docs/internal/MISTAKES.md:
+    # a 429 hit both the VM and the Mac, which share the same synced
+    # account) - so a second account can succeed where the first is
+    # currently rate-limited, and the resolver must not give up after one.
+    from backend import cookies as cookies_module
+
+    monkeypatch.setattr(config, "get_cookies_path", lambda: None)
+    monkeypatch.setattr(
+        cookies_module, "instagram_cookiefile_candidates", lambda: ["/tmp/account-a.txt", "/tmp/account-b.txt"]
+    )
+    cleaned_up = {}
+    monkeypatch.setattr(cookies_module, "_cleanup_temp_cookiefiles", lambda paths: cleaned_up.setdefault("paths", paths))
+
+    def fake_reel_media(username, cookies_path, **kwargs):
+        if cookies_path == "/tmp/account-a.txt":
+            raise Exception("Instagram API returned status 429")
+        return [{"id": "ok", "title": "Reel", "url": "https://www.instagram.com/reel/ok/"}]
+
+    monkeypatch.setattr(instagram_module, "fetch_instagram_profile_reel_media", fake_reel_media)
+    monkeypatch.setattr(instagram_module, "fetch_instagram_profile_info", lambda *a, **k: (_ for _ in ()).throw(Exception("429")))
+    monkeypatch.setattr(instagram_module, "fetch_instagram_profile_info_fallback", lambda *a, **k: (_ for _ in ()).throw(Exception("429")))
+
+    cls = classify.classify_url("https://www.instagram.com/someuser/reels/")
+    info = extraction_module.extract_video_info(cls)
+    assert info["entries"][0]["id"] == "ok"
+    assert cleaned_up["paths"] == ["/tmp/account-a.txt", "/tmp/account-b.txt"]
+
+
 def test_a_non_instagram_failure_is_not_logged_as_an_instagram_failure(monkeypatch, capsys):
     class Boom:
         def __init__(self, opts):
