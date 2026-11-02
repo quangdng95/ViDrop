@@ -56,6 +56,15 @@ def test_qualities_for_defaults_only_when_no_formats():
     assert qualities_for({}) == ["Best", "Audio Only"]
 
 
+def test_qualities_for_drops_best_when_every_format_is_audio_only():
+    # A SoundCloud track's formats carry no height at all - unlike the "no
+    # formats listed yet" case above, "Best" would be a second name for
+    # "Audio Only" here and would route into the video merge/remux pipeline,
+    # which has nothing to merge.
+    info = {"formats": [{"acodec": "mp3", "vcodec": "none"}, {"acodec": "opus", "vcodec": "none"}]}
+    assert qualities_for(info) == ["Audio Only"]
+
+
 def test_qualities_for_uses_youtubes_label_not_raw_height_for_ultrawide_video():
     # Regression: a non-16:9 (e.g. ultrawide/letterboxed) source has a raw
     # pixel `height` well below its YouTube-labeled tier - a real "2160p"

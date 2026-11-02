@@ -243,7 +243,7 @@ const en: Translations = {
     clearAll: "Clear history",
     untitled: "Untitled",
   },
-  login: { tagline: "Save videos, music and photos in one tap.", platforms: "YouTube · TikTok · Instagram · Facebook · X · Threads · Pinterest · LinkedIn · RedNote", title: "Welcome to ViDrop", subtitle: "Enter your access token to continue.", label: "Access token", placeholder: "Paste your token", submit: "Unlock", submitting: "Unlocking…", wrong: "Incorrect token. Please try again.", locked: "Too many attempts. Try again in a few minutes.", network: "Could not reach the server. Check your connection.", show: "Show token", hide: "Hide token" },
+  login: { tagline: "Save videos, music and photos in one tap.", platforms: "YouTube · TikTok · Instagram · Facebook · X · Threads · Pinterest · LinkedIn · RedNote · SoundCloud", title: "Welcome to ViDrop", subtitle: "Enter your access token to continue.", label: "Access token", placeholder: "Paste your token", submit: "Unlock", submitting: "Unlocking…", wrong: "Incorrect token. Please try again.", locked: "Too many attempts. Try again in a few minutes.", network: "Could not reach the server. Check your connection.", show: "Show token", hide: "Hide token" },
   footer: { by: "By" },
   urlInput: {
     fieldLabel: "Video link",
@@ -429,7 +429,7 @@ const en: Translations = {
     sections: [
       {
         heading: "1. Our Service",
-        body: "ViDrop is a free, general-purpose utility tool designed to help users download video and audio content from third-party platforms, including YouTube (with full support for playlists and channels), TikTok, Instagram, Facebook, RedNote, Threads, Pinterest (boards and pins), X (Twitter), and LinkedIn.",
+        body: "ViDrop is a free, general-purpose utility tool designed to help users download video and audio content from third-party platforms, including YouTube (with full support for playlists and channels), TikTok, Instagram, Facebook, RedNote, Threads, Pinterest (boards and pins), X (Twitter), LinkedIn, and SoundCloud.",
       },
       {
         heading: "2. Personal & Non-Commercial Use",
@@ -847,7 +847,7 @@ const vi: Translations = {
     clearAll: "Xoá lịch sử",
     untitled: "Chưa có tiêu đề",
   },
-  login: { tagline: "Lưu video, nhạc và ảnh chỉ với một chạm.", platforms: "YouTube · TikTok · Instagram · Facebook · X · Threads · Pinterest · LinkedIn · RedNote", title: "Chào mừng đến ViDrop", subtitle: "Nhập mã truy cập để tiếp tục.", label: "Mã truy cập", placeholder: "Dán mã của bạn", submit: "Mở khoá", submitting: "Đang mở khoá…", wrong: "Mã không đúng. Vui lòng thử lại.", locked: "Thử quá nhiều lần. Vui lòng thử lại sau vài phút.", network: "Không kết nối được máy chủ. Kiểm tra mạng của bạn.", show: "Hiện mã", hide: "Ẩn mã" },
+  login: { tagline: "Lưu video, nhạc và ảnh chỉ với một chạm.", platforms: "YouTube · TikTok · Instagram · Facebook · X · Threads · Pinterest · LinkedIn · RedNote · SoundCloud", title: "Chào mừng đến ViDrop", subtitle: "Nhập mã truy cập để tiếp tục.", label: "Mã truy cập", placeholder: "Dán mã của bạn", submit: "Mở khoá", submitting: "Đang mở khoá…", wrong: "Mã không đúng. Vui lòng thử lại.", locked: "Thử quá nhiều lần. Vui lòng thử lại sau vài phút.", network: "Không kết nối được máy chủ. Kiểm tra mạng của bạn.", show: "Hiện mã", hide: "Ẩn mã" },
   footer: { by: "Bởi" },
   urlInput: {
     fieldLabel: "Link video",
@@ -1033,7 +1033,7 @@ const vi: Translations = {
     sections: [
       {
         heading: "1. Dịch vụ của chúng tôi",
-        body: "ViDrop là một công cụ tiện ích miễn phí, đa năng, được thiết kế để giúp người dùng tải video và âm thanh từ các nền tảng bên thứ ba, bao gồm YouTube (hỗ trợ đầy đủ danh sách phát và kênh), TikTok, Instagram, Facebook, RedNote, Threads, Pinterest (bảng và ghim), X (Twitter) và LinkedIn.",
+        body: "ViDrop là một công cụ tiện ích miễn phí, đa năng, được thiết kế để giúp người dùng tải video và âm thanh từ các nền tảng bên thứ ba, bao gồm YouTube (hỗ trợ đầy đủ danh sách phát và kênh), TikTok, Instagram, Facebook, RedNote, Threads, Pinterest (bảng và ghim), X (Twitter), LinkedIn và SoundCloud.",
       },
       {
         heading: "2. Sử dụng cá nhân & phi thương mại",

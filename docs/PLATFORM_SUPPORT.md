@@ -95,6 +95,14 @@ link check, verified with `ffprobe` (picture, sound, size) and then deleted.
 |---|---|---|
 | Video or image note (including `xhslink.com` share links) | 🔑 Works in the Mac app, needs sign-in | Verified 2026-10-14 with three share links (two videos, one 16-picture note). Sign in to RedNote in Chrome on your Mac. **Not available on the web version**: RedNote refuses the cloud server, and ViDrop says so. A share link's token expires after a while; copy a fresh one. |
 
+## SoundCloud
+
+| Content | Status | Notes |
+|---|---|---|
+| Track | ✅ Works | Checked 2026-11-02 against a real public track. No custom resolver needed — yt-dlp's own SoundCloud extractor handles it; ViDrop only offers "Audio Only" (no "Best"/resolution options, since there is no video stream) and saves an MP3. |
+| Set / playlist | ➖ Not tested | No sample link; pasting one currently downloads only its first track (no playlist listing yet for SoundCloud). |
+| `snd.sc` short link | ➖ Not tested | No sample link. |
+
 ## Sample links missing
 
 To test these, add a link to `docs/EXAMPLE_LINKS.md`: Instagram Story, Instagram private

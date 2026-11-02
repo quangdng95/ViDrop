@@ -397,12 +397,26 @@ def _format_label_height(f):
 
 
 def qualities_for(info):
+    formats = info.get("formats") or []
     res_set = set()
-    for f in info.get("formats", []):
+    for f in formats:
         label_height = _format_label_height(f)
         if label_height is not None and label_height >= 360:
             res_set.add(label_height)
     qualities = [f"{h}p" for h in sorted(res_set, reverse=True)]
+    # A source whose formats are all audio (SoundCloud, say - yt-dlp never
+    # gives it a video stream at all) has no resolution tier, so "Best" would
+    # just be a second name for "Audio Only" - and worse, build_download_options'
+    # "Best" branch tries to merge a (nonexistent) video stream into an mp4.
+    # Distinct from a genuine low-res video (every format below the 360p floor
+    # above, but still a format with ITS OWN height, or an explicit non-"none"
+    # vcodec) - that case must still offer "Best". An info dict with no formats
+    # at all (e.g. before extraction ran) also keeps today's "assume video"
+    # default below.
+    has_video_evidence = any(f.get("height") is not None or (f.get("vcodec") or "none") != "none" for f in formats)
+    if formats and not has_video_evidence:
+        qualities.append("Audio Only")
+        return qualities
     qualities.append("Best")
     qualities.append("Audio Only")
     return qualities

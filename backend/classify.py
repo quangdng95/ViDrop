@@ -49,7 +49,7 @@ class LinkKind(str, enum.Enum):
 
 @dataclasses.dataclass(frozen=True)
 class Classification:
-    platform: str  # "YouTube" | "Instagram" | "TikTok" | "Facebook" | "RedNote" | "LinkedIn" | "Threads" | "X" | "Link"
+    platform: str  # "YouTube" | "Instagram" | "TikTok" | "Facebook" | "RedNote" | "LinkedIn" | "Threads" | "Pinterest" | "SoundCloud" | "X" | "Link"
     kind: LinkKind
     # The two URLs are deliberately separate (do NOT merge them): downloading a
     # watch?v=X&list=PL… item must fetch video X (url), while /api/check must
@@ -177,13 +177,19 @@ def get_platform_info(url):
     if "threads.com" in url_lower or "threads.net" in url_lower: return "Threads"
     # Pinterest: pinterest.com plus its country domains (pinterest.co.uk, .fr, .jp ...) and its short link pin.it.
     if _is_pinterest_host(url_lower): return "Pinterest"
+    # SoundCloud has no custom resolver - it goes straight through the
+    # generic yt-dlp path (extraction.py), which already natively supports it.
+    if "soundcloud.com" in url_lower: return "SoundCloud"
     # x.com (formerly twitter.com) - checked via hostname rather than a bare
     # substring, since "x.com" is short enough to false-positive on an
-    # unrelated domain (e.g. "vertex.com").
+    # unrelated domain (e.g. "vertex.com"). snd.sc (SoundCloud's own short
+    # link domain) is two letters for the same reason.
     try:
         hostname = (urllib.parse.urlparse(url).hostname or "").lower()
     except ValueError:
         hostname = ""
+    if hostname == "snd.sc":
+        return "SoundCloud"
     if hostname in ("x.com", "www.x.com", "twitter.com", "www.twitter.com", "mobile.twitter.com"):
         return "X"
     return "Link"

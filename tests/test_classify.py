@@ -387,6 +387,26 @@ def test_classify_url_threads_post_is_single_multi_false():
     assert cls.is_multi is False
 
 
+def test_get_platform_info_soundcloud():
+    assert get_platform_info("https://soundcloud.com/cubb-cao/em-co-yeu-anh-dau-c-walk-ft-tc") == "SoundCloud"
+    assert get_platform_info("https://snd.sc/abc123") == "SoundCloud"
+
+
+def test_get_platform_info_soundcloud_does_not_false_positive_on_similar_domains():
+    # "snd.sc" is a short substring, checked via hostname for the same reason
+    # x.com is - must not match an unrelated domain that merely contains it.
+    assert get_platform_info("https://example.com/snd.sc/fake") == "Link"
+
+
+def test_classify_url_soundcloud_track_is_single():
+    # SoundCloud has no custom resolver - it's a generic yt-dlp platform, same
+    # default shape as TikTok/Facebook/X.
+    cls = classify_url("https://soundcloud.com/cubb-cao/em-co-yeu-anh-dau-c-walk-ft-tc")
+    assert cls.platform == "SoundCloud"
+    assert cls.kind == LinkKind.SINGLE
+    assert cls.is_multi is False
+
+
 def test_get_platform_info_unknown_falls_back_to_link():
     assert get_platform_info("https://example.com/video") == "Link"
 
