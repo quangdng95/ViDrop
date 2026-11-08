@@ -27,6 +27,7 @@ const Footer = ({ onNavigate }: FooterProps) => {
       <div className="flex items-center gap-2">
         <p className="m-0 text-base text-ink-muted">{t.footer.by}</p>
         <Logo size="small" />
+        <p className="m-0 text-base text-ink-muted">v{__APP_VERSION__}</p>
       </div>
     </motion.footer>
   );

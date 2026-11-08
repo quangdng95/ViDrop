@@ -21,6 +21,11 @@ describe("Footer", () => {
     expect(screen.getByAltText("ViDrop")).toBeInTheDocument();
   });
 
+  it("always shows the app's current version, even on the Home page", () => {
+    renderFooter();
+    expect(screen.getByText(`v${__APP_VERSION__}`)).toBeInTheDocument();
+  });
+
   it("opens the Terms page from the footer link", async () => {
     const onNavigate = renderFooter();
     await userEvent.setup().click(screen.getByRole("button", { name: "Terms of Use" }));
