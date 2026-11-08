@@ -1,10 +1,19 @@
+import { readFileSync } from "fs";
 import path from "path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import inlineIcons from "./plugins/inlineIcons.ts";
 
+// The single source of truth for the app's version (see CLAUDE.md: "Version lives ONLY in
+// frontend/package.json"). Baked in at build time so the running app can show the user which
+// version they actually have, instead of that only being knowable from the filename/DMG.
+const pkg = JSON.parse(readFileSync(path.resolve(__dirname, "./package.json"), "utf-8"));
+
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
   plugins: [react(), tailwindcss(), inlineIcons()],
   resolve: {
     alias: {

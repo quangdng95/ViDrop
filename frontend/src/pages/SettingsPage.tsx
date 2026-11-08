@@ -369,6 +369,15 @@ const SettingsPage = ({ onNavigate: _onNavigate }: SettingsPageProps) => {
             </SectionCard>
           )}
 
+          <SectionCard className="p-5 bg-white border border-ink  rounded-none flex flex-col gap-2">
+            <p className="text-base font-semibold text-ink m-0">
+              {t.settingsPage.about.heading}
+            </p>
+            <p className="text-base text-ink-muted m-0">
+              {t.settingsPage.about.versionLabel}: v{__APP_VERSION__}
+            </p>
+          </SectionCard>
+
       </div>
     </div>
   );

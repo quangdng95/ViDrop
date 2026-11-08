@@ -23,6 +23,39 @@ Before anything else, know that Settings has two tools built for exactly this si
   what you know to be true (e.g. "I'm definitely logged into Instagram, but it says no session
   found") — a stale saved setting from a previous version is a common cause.
 
+## ViDrop keeps opening new windows / the Dock fills up with ViDrop icons
+
+Fixed as of the build that includes this note (check **Settings → About** for your version). An
+older build had no protection against opening twice: clicking the Dock/Finder/Launchpad icon a
+second time — including once while the app was still starting up a couple of seconds in — created
+a whole new copy of ViDrop with its own window and its own Dock icon, instead of just showing the
+window that was already open. Each extra copy looked like it worked (it just displayed the same
+thing the first one was already serving), so there was no obvious sign anything was wrong other
+than the Dock slowly filling up with identical icons over repeated opens.
+
+**If you're on a build that already has this fix** (see Settings → About), this cannot happen
+anymore — opening the app again just brings the existing window to the front.
+
+**If you're stuck with a pile of ViDrop icons from before updating:**
+
+1. **Quit every copy at once** — open **Terminal** (Applications → Utilities → Terminal) and run:
+   ```
+   killall ViDrop
+   ```
+   This closes every running ViDrop process in one go. If you'd rather not use Terminal, press
+   **⌘ Option Esc** to open Force Quit Applications, select **ViDrop**, click **Force Quit**, and
+   repeat for as many "ViDrop" entries as appear in that list.
+2. **Clear the leftover icons from the Dock itself** (quitting the processes above doesn't always
+   make the Dock redraw on its own): open Terminal and run:
+   ```
+   killall Dock
+   ```
+   This only restarts the Dock (a visual refresh) — no files, settings, or other open apps are
+   affected. If you'd rather avoid Terminal entirely, logging out and back in (or restarting your
+   Mac) clears it the same way.
+3. Update to the latest version from [Releases](https://github.com/quangdng95/ViDrop/releases/latest)
+   if you haven't already, so this doesn't come back.
+
 ## Common messages and what they mean
 
 ViDrop's error messages follow the language you chose in Settings. The quotes below are the

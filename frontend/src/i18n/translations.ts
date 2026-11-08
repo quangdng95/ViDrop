@@ -176,6 +176,10 @@ export interface Translations {
       confirm: string;
       done: string;
     };
+    about: {
+      heading: string;
+      versionLabel: string;
+    };
   };
   terms: {
     heading: string;
@@ -418,6 +422,10 @@ const en: Translations = {
       button: "Clear Cache & Reset Settings",
       confirm: "This will reset your save folder, language, and saved settings back to default. Continue?",
       done: "Settings have been reset.",
+    },
+    about: {
+      heading: "About",
+      versionLabel: "Version",
     },
   },
   terms: {
@@ -1022,6 +1030,10 @@ const vi: Translations = {
       button: "Xóa Cache & Đặt lại Cài đặt",
       confirm: "Thao tác này sẽ đặt lại thư mục lưu, ngôn ngữ và các cài đặt đã lưu về mặc định. Tiếp tục?",
       done: "Đã đặt lại cài đặt.",
+    },
+    about: {
+      heading: "Thông tin ứng dụng",
+      versionLabel: "Phiên bản",
     },
   },
   terms: {

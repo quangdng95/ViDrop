@@ -24,6 +24,40 @@ cho tình huống này:
   không tìm thấy session") — một cài đặt cũ còn sót lại từ phiên bản trước là nguyên nhân thường
   gặp.
 
+## App cứ tự mở cửa sổ mới liên tục / Dock đầy icon ViDrop
+
+Đã được sửa tận gốc kể từ bản có ghi chú này (xem phiên bản của bạn ở **Cài đặt → Thông tin ứng
+dụng**). Ở bản cũ, app không có cơ chế chặn mở trùng: bấm vào icon ViDrop ở Dock/Finder/Launchpad
+lần thứ hai — kể cả khi bấm lúc app vừa mở được vài giây, chưa kịp hiện cửa sổ — sẽ tạo ra MỘT BẢN
+SAO hoàn toàn mới của ViDrop, với cửa sổ riêng và icon Dock riêng, thay vì chỉ hiện lại cửa sổ đã
+mở sẵn. Mỗi bản sao thêm vào trông vẫn hoạt động bình thường (vì nó chỉ hiển thị lại đúng nội dung
+mà bản đầu tiên đang chạy), nên không có dấu hiệu rõ ràng nào báo có gì sai, ngoại trừ việc Dock cứ
+từ từ chất đầy icon giống hệt nhau sau mỗi lần mở app.
+
+**Nếu bạn đang dùng bản đã có fix này** (xem Cài đặt → Thông tin ứng dụng), tình trạng này không
+thể xảy ra nữa — mở lại app chỉ đơn giản là đưa cửa sổ đang chạy sẵn lên trước.
+
+**Nếu bạn đang bị kẹt với một đống icon ViDrop từ trước khi cập nhật:**
+
+1. **Tắt tất cả các bản sao cùng lúc** — mở **Terminal** (Applications → Utilities → Terminal) và
+   chạy:
+   ```
+   killall ViDrop
+   ```
+   Lệnh này tắt hết mọi tiến trình ViDrop đang chạy trong một lần. Nếu không muốn dùng Terminal,
+   bấm **⌘ Option Esc** để mở hộp thoại Force Quit Applications, chọn **ViDrop**, bấm **Force
+   Quit**, rồi lặp lại cho mỗi mục "ViDrop" xuất hiện trong danh sách đó.
+2. **Dọn sạch icon còn sót lại trên Dock** (tắt tiến trình ở bước trên không phải lúc nào cũng
+   khiến Dock tự vẽ lại ngay): mở Terminal và chạy:
+   ```
+   killall Dock
+   ```
+   Lệnh này chỉ khởi động lại Dock (chỉ là làm mới hình ảnh hiển thị) — không ảnh hưởng đến file,
+   cài đặt, hay bất kỳ app nào khác đang mở. Nếu muốn tránh Terminal hoàn toàn, đăng xuất rồi đăng
+   nhập lại (hoặc khởi động lại máy) cũng dọn sạch y như vậy.
+3. Cập nhật lên bản mới nhất tại [Releases](https://github.com/quangdng95/ViDrop/releases/latest)
+   nếu bạn chưa làm, để tình trạng này không quay lại.
+
 ## Các thông báo thường gặp và ý nghĩa
 
 Thông báo lỗi của ViDrop theo ngôn ngữ bạn chọn trong Cài đặt. Các trích dẫn bên dưới là bản tiếng

@@ -47,6 +47,12 @@ describe("SettingsPage", () => {
     expect(screen.queryByText(/send test notification/i)).not.toBeInTheDocument();
   });
 
+  it("shows the app's current version, read from package.json at build time", () => {
+    renderSettingsPage();
+
+    expect(screen.getByText(`Version: v${__APP_VERSION__}`)).toBeInTheDocument();
+  });
+
   it("switches the whole page to Vietnamese immediately when the Vietnamese option is selected", async () => {
     const user = userEvent.setup({ delay: null });
     renderSettingsPage();
