@@ -281,6 +281,8 @@ def check_link():
             try:
                 media = linkedin.fetch_linkedin_image_post(url)
                 return jsonify(instagram.instagram_check_response(url, media))
+            except linkedin.LinkedInAuthError:
+                return jsonify({"error": messages.text("linkedin_auth", lang)}), 400
             except linkedin.LinkedInUnsupportedPostError:
                 return jsonify({"error": messages.text("linkedin_document", lang)}), 400
             except Exception:
@@ -662,6 +664,10 @@ def start_download():
                 except yt_dlp.utils.DownloadCancelled:
                     jobs.jobs[job_id]["status"] = "cancelled"
                     jobs.jobs[job_id]["text"] = "Cancelled"
+                    return
+                except linkedin.LinkedInAuthError:
+                    jobs.jobs[job_id]["status"] = "error"
+                    jobs.jobs[job_id]["text"] = messages.text("linkedin_auth", lang)
                     return
                 except linkedin.LinkedInUnsupportedPostError:
                     jobs.jobs[job_id]["status"] = "error"

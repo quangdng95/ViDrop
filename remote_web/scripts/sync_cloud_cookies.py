@@ -71,6 +71,8 @@ _DOMAINS = {
     # RedNote requires a login to show any note (2026-10-06); its session cookie is web_session.
     "rednote.com": ("web_session",),
     "xiaohongshu.com": ("web_session",),
+    # Some LinkedIn posts redirect anonymous requests to /signup/cold-join (2026-11-03); li_at opens them.
+    "linkedin.com": ("li_at",),
 }
 
 # Chromium-family browsers browser_cookie3 can read on macOS. Whichever one

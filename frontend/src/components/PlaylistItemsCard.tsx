@@ -24,8 +24,6 @@ interface PlaylistItemsCardProps {
   platform: Platform;
   items: PlaylistItem[];
   truncated?: boolean;
-  // 1-based row to start ticked (a link shared from one slide of a carousel).
-  selectedIndex?: number;
   busy: boolean;
   rowStatus: Record<number, RowProgress>;
   batchSummary: BatchSummary | null;
@@ -45,7 +43,6 @@ const PlaylistItemsCard = ({
   platform,
   items = [],
   truncated,
-  selectedIndex,
   busy,
   rowStatus = {},
   batchSummary,
@@ -57,9 +54,7 @@ const PlaylistItemsCard = ({
 }: PlaylistItemsCardProps) => {
   const { t } = useLanguage();
 
-  const [selected, setSelected] = useState<Set<number>>(() =>
-    selectedIndex && selectedIndex >= 1 && selectedIndex <= items.length ? new Set([selectedIndex - 1]) : new Set()
-  );
+  const [selected, setSelected] = useState<Set<number>>(() => new Set());
   const [showUnavailable, setShowUnavailable] = useState(false);
   // Row index (into `items`) of the thumbnail currently enlarged, or null.
   const [previewRow, setPreviewRow] = useState<number | null>(null);

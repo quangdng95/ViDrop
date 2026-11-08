@@ -72,6 +72,10 @@ _CATALOG = {
     # LinkedIn's native document/slide-deck (PDF) post type has no known
     # resolver (see docs/internal/MISTAKES.md), so it gets its own specific message rather
     # than whatever unrelated error yt-dlp raises for the same URL.
+    "linkedin_auth": {
+        VI: "❌ Lỗi: Bài đăng LinkedIn này yêu cầu đăng nhập mới xem được (LinkedIn chuyển về trang đăng nhập). Hãy đăng nhập LinkedIn (linkedin.com) trên trình duyệt Chrome/Safari/Arc rồi thử lại.",
+        EN: "❌ Error: LinkedIn requires a signed-in account to view this post (it redirected to the sign-in page). Sign in to LinkedIn (linkedin.com) in Chrome/Safari/Arc, then try again.",
+    },
     "linkedin_document": {
         VI: "❌ Lỗi: Không đọc được nội dung bài đăng LinkedIn này. Bài có thể đã bị xoá hoặc ở chế độ riêng tư, hoặc là tài liệu/slide (PDF) mà các trang không đọc được. ViDrop hỗ trợ bài LinkedIn công khai dạng video, ảnh và tài liệu.",
         EN: "❌ Error: Couldn't read this LinkedIn post. It may have been removed or be private, or it is a document/slide (PDF) whose pages couldn't be read. ViDrop supports public LinkedIn video, image and document posts.",

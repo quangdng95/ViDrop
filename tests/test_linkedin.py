@@ -10,7 +10,7 @@ import urllib.request
 import pytest
 
 from backend import linkedin as linkedin_module
-from backend.linkedin import LinkedInUnsupportedPostError, fetch_linkedin_image_post
+from backend.linkedin import LinkedInAuthError, LinkedInUnsupportedPostError, fetch_linkedin_image_post
 
 
 class _HtmlResponse:
@@ -154,3 +154,73 @@ def test_a_plain_image_post_is_unaffected(monkeypatch):
     )
     monkeypatch.setattr(urllib.request, "urlopen", _Router({POST: html}))
     assert len(fetch_linkedin_image_post(POST)["items"]) == 1
+
+
+SIGNUP_HTML = (
+    '<meta property="og:title" content="Sign Up | LinkedIn">'
+    '<meta property="og:image" content="https://static.licdn.com/scds/common/u/images/logos/favicons/v1/favicon.ico">'
+)
+
+
+def test_a_login_wall_page_raises_auth_error_instead_of_returning_the_linkedin_logo(monkeypatch):
+    monkeypatch.setattr(urllib.request, "urlopen", _Router({POST: SIGNUP_HTML}))
+    monkeypatch.setattr(linkedin_module, "linkedin_cookiefile_candidates", lambda: [])
+
+    with pytest.raises(LinkedInAuthError):
+        fetch_linkedin_image_post(POST)
+
+
+def test_a_login_walled_document_post_falls_back_to_cookies_and_reads_sdui_manifest(monkeypatch, tmp_path):
+    cookie_file = tmp_path / "cookies.txt"
+    cookie_file.write_text(".linkedin.com\tTRUE\t/\tTRUE\t2147483647\tli_at\tsession123\n")
+    monkeypatch.setattr(linkedin_module, "linkedin_cookiefile_candidates", lambda: [str(cookie_file)])
+
+    escaped_manifest = MANIFEST + r"?e=1\u0026v=beta\u0026t=abc"
+    unquoted_manifest = MANIFEST + "?e=1&v=beta&t=abc"
+    sdui_html = f'<script>self.__next_f.push([1,"{{\\"primaryManifestUrl\\":\\"{escaped_manifest}\\"}}"])</script>'
+
+    post_url = "https://www.linkedin.com/posts/iryna-strazhevich_ux-deliverables-glossary-ugcPost-7517861555116482561-4k9v/"
+
+    def fake_urlopen(req, timeout=20):
+        url = req.full_url if hasattr(req, "full_url") else req
+        if url == post_url:
+            has_cookie = "li_at=session123" in (req.get_header("Cookie") or "")
+            return _HtmlResponse(sdui_html if has_cookie else SIGNUP_HTML)
+        if url == unquoted_manifest:
+            return _HtmlResponse(_json.dumps(FULL_ROUTES[MANIFEST]))
+        if url == BIG_IM:
+            return _HtmlResponse(_json.dumps(FULL_ROUTES[BIG_IM]))
+        raise urllib.error.URLError("unexpected url: " + url)
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+
+    media = fetch_linkedin_image_post(post_url)
+    assert media["title"] == "Ux Deliverables Glossary"
+    assert [item["url"] for item in media["items"]] == PAGES
+
+
+def test_mirror_url_rewrites_throttled_linkedin_web_hosts_only():
+    assert (
+        linkedin_module._mirror_url("https://www.linkedin.com/posts/edbiden_prd-share-7522696165755179008-Hnsy/?x=1")
+        == "https://sg.linkedin.com/posts/edbiden_prd-share-7522696165755179008-Hnsy/?x=1"
+    )
+    assert (
+        linkedin_module._mirror_url("https://media.licdn.com/dms/image/v2/abc")
+        == "https://media.licdn.com/dms/image/v2/abc"
+    )
+
+
+def test_redirect_handler_stops_immediately_on_login_wall_redirect():
+    handler = linkedin_module._LinkedInRedirectHandler()
+    req = urllib.request.Request("https://sg.linkedin.com/posts/x")
+    with pytest.raises(LinkedInAuthError):
+        handler.redirect_request(
+            req,
+            None,
+            307,
+            "Temporary Redirect",
+            {},
+            "https://www.linkedin.com/signup/cold-join?session_redirect=https%3A%2F%2Fwww.linkedin.com%2F",
+        )
+
+
