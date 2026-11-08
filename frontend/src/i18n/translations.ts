@@ -623,6 +623,16 @@ const en: Translations = {
   changelog: {
     releases: [
       {
+        date: "2026-11-08",
+        title: "ViDrop 2.1.0: scan any website, a LinkedIn fix, and a Dock bug fix",
+        items: [
+          "LinkedIn posts that redirect to a sign-in page (common from the mobile app's share link) now work - ViDrop used to mistake that sign-in page for the actual post and download LinkedIn's own logo instead.",
+          "Paste a link from almost any other website (on the Mac app) and ViDrop can now list and download its images and videos too, as a fallback for links that don't match any of the usual platforms.",
+          "Fixed a bug where opening ViDrop more than once - even by accident, like double-clicking while it was still starting up - created extra windows and piled up icons in the Dock forever.",
+          "Settings now shows which version of ViDrop you're running, under a new About section.",
+        ],
+      },
+      {
         date: "2026-10-30",
         title: "ViDrop 2.0.6: Instagram downloads every post from a profile",
         items: [
@@ -1227,6 +1237,16 @@ const vi: Translations = {
   },
   changelog: {
     releases: [
+      {
+        date: "08-11-2026",
+        title: "ViDrop 2.1.0: quét mọi trang web, sửa lỗi LinkedIn và lỗi Dock",
+        items: [
+          "Bài LinkedIn bị chuyển về trang đăng nhập (thường gặp khi chia sẻ từ app điện thoại) giờ tải được - trước đây ViDrop nhầm trang đăng nhập đó là bài viết thật và tải nhầm logo của LinkedIn.",
+          "Dán link từ gần như bất kỳ trang web nào khác (trên app Mac), ViDrop giờ có thể liệt kê và tải ảnh/video từ trang đó, dùng khi link không khớp với nền tảng quen thuộc nào.",
+          "Sửa lỗi mở ViDrop nhiều lần - kể cả vô tình bấm lúc app vừa mở, chưa kịp hiện cửa sổ - tạo ra nhiều cửa sổ và chất đầy icon trong Dock mãi không hết.",
+          "Cài đặt giờ hiển thị phiên bản ViDrop bạn đang dùng, trong mục Thông tin ứng dụng mới.",
+        ],
+      },
       {
         date: "30-10-2026",
         title: "ViDrop 2.0.6: Instagram tải mọi bài trong một tài khoản",

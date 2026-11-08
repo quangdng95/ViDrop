@@ -11,6 +11,48 @@ version (`ViDrop 2.0.x`) was built and tagged that day. A section with no versio
 shipped to web immediately but only reached the Mac app later — its heading now carries
 **`· first Mac build: vX.Y.Z`**, the earliest tagged Mac release whose build included that commit.
 
+## 2026-11-08 · ViDrop 2.1.0: generic website scanning, a LinkedIn login-wall fix, and a Dock bug fix
+
+- [x] **LinkedIn login wall misread as a real post.** Some LinkedIn posts (notably mobile-app
+  share links with `rcm=`/`utm_source=ios_app` params) redirect anonymous requests to LinkedIn's
+  own sign-up/login wall, whose `og:title`/`og:image` describe the Sign Up page itself - the old
+  resolver (`backend/linkedin.py`) read that as a valid 1-image post and downloaded LinkedIn's own
+  logo. Fixed by detecting the wall (path, title, or static-logo image) and falling back to any
+  synced `li_at` session cookie (`sync_cloud_cookies.py` now syncs this to the cloud VM too, like
+  Instagram/Threads/RedNote already did), plus mirroring `www.linkedin.com`→`sg.linkedin.com` to
+  dodge a regional TLS handshake drop seen on some ISPs. Deployed to production web; verified live
+  against a real failing URL both before (reproduced) and after (fixed) the fix.
+- [x] **Generic website media scanner (`backend/webscan.py`), desktop app only.** A URL matching
+  none of the 10 supported platforms, and that yt-dlp's own generic extractor also can't resolve,
+  now renders in a real headless Chromium (Playwright) and lists every image/video the page shows
+  - DOM `<img>`/`<video>`/`<source>` elements, `og:image`/`og:video` meta tags, and network
+  responses with an image/video content-type seen during load, so JS-rendered/lazy-loaded content
+  is caught too. Fully automatic (the last branch in the existing `except DownloadError` fallback
+  chain LinkedIn/TikTok/X/RedNote already use) - no new UI, no frontend changes needed. Deliberately
+  never wired into `remote_web` (a per-request Chromium process would risk taking down the
+  resource-limited production VM) - gated by `is_local_request()`, desktop-only. Can't resolve
+  `blob:` object URLs or stitch HLS/DASH streams into one file, so most JS video-player widgets
+  won't produce a downloadable item; plain photos and direct-file videos work reliably. Chromium
+  (~150MB) isn't pip-installable and is fetched separately by `playwright install chromium` -
+  `desktop_app.py` kicks this off in a background thread at startup so a user's first real scan
+  doesn't pay for it.
+- [x] **Fixed: opening the app twice piled up windows and Dock icons forever.** `desktop_app.py`
+  had no single-instance guard, so opening ViDrop again - even by double-clicking the Dock/Finder
+  icon a second time while the first launch was still starting up - spawned a brand new process
+  with its own window and its own permanent Dock icon. Only the first process's Flask server
+  actually bound port 5001; every later one failed to bind inside its own background thread,
+  silently, but pywebview still opened a window pointed at that same port regardless, so it just
+  displayed the first instance's content and looked completely normal, while the zombie process
+  and its Dock icon never went away on their own. Fixed with an exclusive, non-blocking `flock` on
+  a lock file in `~/Library/Application Support/ViDrop` held for the life of the process; a launch
+  that can't acquire it now activates the real window via `osascript` and exits immediately,
+  before creating anything a Dock icon would represent. Verified with two real separate OS
+  processes racing for the same lock file.
+- [x] **The app now shows its own version.** Settings → About shows `Version: vX.Y.Z`, baked in
+  at build time from `frontend/package.json` (the version's one source of truth) via a new
+  `__APP_VERSION__` Vite define - so which build is actually running is always visible in the app
+  itself, not only inferrable from the DMG filename.
+
 ## 2026-10-30 · ViDrop 2.0.6: Instagram downloads every post from a profile, not just video reels
 
 - [x] Pasting an Instagram profile link used to list only its video reels - every photo and carousel
