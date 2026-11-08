@@ -18,7 +18,7 @@ from concurrent.futures import ThreadPoolExecutor
 import yt_dlp
 from flask import Flask, request, jsonify, send_from_directory, send_file, after_this_request
 
-from backend import classify, config, cookies, download, extraction, instagram, jobs, linkedin, messages, paths, pinterest, rednote, shortlinks, threads, tiktok, webpage, xposts
+from backend import classify, config, cookies, download, extraction, instagram, jobs, linkedin, messages, paths, pinterest, rednote, shortlinks, threads, tiktok, webpage, webscan, xposts
 
 app = Flask(__name__, static_folder=paths.WEB_DIR, static_url_path="")
 
@@ -331,6 +331,23 @@ def check_link():
                 cookies._cleanup_temp_cookiefiles(rn_candidates)
             if not rn_candidates:
                 return jsonify({"error": messages.text("rednote_auth", lang)}), 400
+        # Last resort, only once every named-platform resolver above has had its
+        # chance: a URL matching no known platform (classify.py's "Link" fallback)
+        # whose page yt-dlp's own generic extractor couldn't make sense of either.
+        # Render it in a real headless browser and list every image/video it shows
+        # - see backend/webscan.py's module docstring for why this is desktop-only.
+        if cls.platform == "Link" and is_local_request():
+            try:
+                media = webscan.fetch_generic_page_media(url)
+                return jsonify(instagram.instagram_check_response(url, media))
+            except webscan.WebScanNoMediaError:
+                return jsonify({"error": messages.text("webscan_no_media", lang)}), 400
+            except webscan.WebScanBrowserUnavailableError:
+                return jsonify({"error": messages.text("webscan_unavailable", lang)}), 400
+            except webscan.WebScanTimeoutError:
+                return jsonify({"error": messages.text("webscan_timeout", lang)}), 400
+            except Exception:
+                pass  # fall through to the generic error below
         error_to_describe = ig_resolver_error if ig_resolver_error is not None else e
         return jsonify({"error": extraction.describe_extraction_error(url, error_to_describe, config.get_cookies_path(), lang=lang)}), 400
     except Exception as e:
@@ -392,6 +409,10 @@ def start_download():
     title = data.get("title") or "Video"
     quality = data.get("quality") or "Best"
     entry_index = data.get("entry_index") or classify.entry_index_from_url(url)
+    # Captured here (inside the request context) rather than re-checked inside
+    # run()'s background thread, where Flask's `request` proxy is unbound and
+    # calling is_local_request() there raises RuntimeError.
+    local_request = is_local_request()
 
     if cls.platform == "Instagram" and not is_local_request():
         return jsonify({"error": messages.text("instagram_local_only", lang)}), 403
@@ -734,6 +755,34 @@ def start_download():
                     jobs.jobs[job_id]["status"] = "error"
                     jobs.jobs[job_id]["text"] = messages.text("rednote_auth", lang)
                     return
+            # Last resort, same ordering/reasoning as /api/check's own webscan
+            # fallback: a URL matching no known platform, local-only.
+            if cls.platform == "Link" and local_request:
+                try:
+                    webscan_media = webscan.fetch_generic_page_media(url)
+                    idx = (entry_index or 1) - 1
+                    webscan_item = webscan_media["items"][idx]
+                    ext = "jpg" if webscan_item["kind"] == "image" else "mp4"
+                    _save_single_cdn_file(job_id, save_dir, title, webscan_item["url"], ext=ext)
+                    return
+                except yt_dlp.utils.DownloadCancelled:
+                    jobs.jobs[job_id]["status"] = "cancelled"
+                    jobs.jobs[job_id]["text"] = "Cancelled"
+                    return
+                except webscan.WebScanNoMediaError:
+                    jobs.jobs[job_id]["status"] = "error"
+                    jobs.jobs[job_id]["text"] = messages.text("webscan_no_media", lang)
+                    return
+                except webscan.WebScanBrowserUnavailableError:
+                    jobs.jobs[job_id]["status"] = "error"
+                    jobs.jobs[job_id]["text"] = messages.text("webscan_unavailable", lang)
+                    return
+                except webscan.WebScanTimeoutError:
+                    jobs.jobs[job_id]["status"] = "error"
+                    jobs.jobs[job_id]["text"] = messages.text("webscan_timeout", lang)
+                    return
+                except Exception:
+                    pass  # fall through to the friendly error below
             # Same friendly-message treatment as /api/check - without this,
             # a download failure shows yt-dlp's raw CLI-flag-laden message
             # (--cookies-from-browser, GitHub issue templates) instead of the
@@ -838,6 +887,12 @@ def start_batch_download():
     # DIFFERENT post, so there is no one shared media to resolve upfront; each
     # photo/carousel item is re-resolved by its own url at download time.
     is_ig_profile = cls.kind == classify.LinkKind.INSTAGRAM_PROFILE
+    # A "Link" (unrecognized-platform) "playlist" can only have come from
+    # backend/webscan.py's desktop-only generic scan: yt-dlp's own generic
+    # extractor never produces a multi-item playlist for this platform, so
+    # reaching here with platform "Link" reliably means one (the whole route
+    # is already local-only-gated above).
+    is_webscan = cls.platform == "Link"
 
     job_id = uuid.uuid4().hex
     total = len(items)
@@ -876,7 +931,7 @@ def start_batch_download():
                 recompute_overall()
 
             try:
-                if is_ig_carousel or is_tiktok_photo or is_linkedin_document or is_rednote_media or is_x_photo or is_pinterest_board or is_threads_post:
+                if is_ig_carousel or is_tiktok_photo or is_linkedin_document or is_rednote_media or is_x_photo or is_pinterest_board or is_threads_post or is_webscan:
                     idx = item.get("entry_index") or (i + 1)
                     node = media_holder["media"]["items"][idx - 1]
                     cdn_url = node.get("url")
@@ -950,6 +1005,8 @@ def start_batch_download():
                 media_holder["media"] = threads.fetch_threads_post(url)
             elif is_pinterest_board:
                 media_holder["media"] = pinterest.fetch_pinterest_media(url, limit=extraction.effective_item_limit(cls))
+            elif is_webscan:
+                media_holder["media"] = webscan.fetch_generic_page_media(url)
             elif is_rednote_media:
                 rn_candidates = rednote.rednote_cookiefile_candidates()
                 try:

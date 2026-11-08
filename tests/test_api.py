@@ -26,6 +26,7 @@ from backend import pinterest as pinterest_module
 from backend import threads as threads_module
 from backend import linkedin as linkedin_module
 from backend import tiktok as tiktok_module
+from backend import webscan as webscan_module
 from backend.config import (
     load_session,
     resolve_save_dir,
@@ -150,7 +151,14 @@ def test_check_link_invalid_link(client, monkeypatch):
     def raise_error(url):
         raise yt_dlp.utils.DownloadError("ERROR: no such video. more CLI-only detail here")
 
+    def raise_unreachable(url):
+        raise Exception("net::ERR_NAME_NOT_RESOLVED")
+
     monkeypatch.setattr(extraction_module, "extract_video_info", raise_error)
+    # A genuinely dead link falls all the way through, including the new
+    # generic-webpage webscan fallback (an unmapped exception there, like a
+    # real navigation failure, falls through to the same generic message).
+    monkeypatch.setattr(webscan_module, "fetch_generic_page_media", raise_unreachable)
     resp = client.post("/api/check", json={"url": "https://example.com/dead"})
     assert resp.status_code == 400
     # yt-dlp's own wording is never shown: an unmapped DownloadError gets the generic message
@@ -1027,6 +1035,159 @@ def test_check_link_tiktok_photo_multi_image_returns_playlist(client, monkeypatc
     body = resp.get_json()
     assert body["type"] == "playlist"
     assert [it["entry_index"] for it in body["items"]] == [1, 2]
+
+
+def test_check_link_generic_webpage_falls_back_to_webscan_when_local(client, monkeypatch):
+    def fake_extract(cls):
+        raise yt_dlp.utils.DownloadError("Unsupported URL: https://example.com/gallery")
+
+    monkeypatch.setattr(extraction_module, "extract_video_info", fake_extract)
+    monkeypatch.setattr(
+        webscan_module,
+        "fetch_generic_page_media",
+        lambda url: {"title": "A Gallery", "items": [
+            {"kind": "image", "url": "https://example.com/1.jpg", "thumbnail": "https://example.com/1.jpg"},
+            {"kind": "image", "url": "https://example.com/2.jpg", "thumbnail": "https://example.com/2.jpg"},
+        ]},
+    )
+    resp = client.post("/api/check", json={"url": "https://example.com/gallery"})
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert body["type"] == "playlist"
+    assert body["platform"] == "Link"
+    assert [it["entry_index"] for it in body["items"]] == [1, 2]
+
+
+def test_check_link_generic_webpage_webscan_never_called_when_remote(client, monkeypatch):
+    def fake_extract(cls):
+        raise yt_dlp.utils.DownloadError("Unsupported URL: https://example.com/gallery")
+
+    called = []
+    monkeypatch.setattr(extraction_module, "extract_video_info", fake_extract)
+    monkeypatch.setattr(webscan_module, "fetch_generic_page_media", lambda url: called.append(url) or {"title": "T", "items": []})
+    resp = client.post(
+        "/api/check",
+        json={"url": "https://example.com/gallery"},
+        headers={"Host": "example.com", "X-Language": "en"},
+    )
+    assert not called
+    assert resp.status_code == 400  # falls through to the ordinary extraction-failed error
+
+
+def test_check_link_generic_webpage_no_media_message(client, monkeypatch):
+    def fake_extract(cls):
+        raise yt_dlp.utils.DownloadError("Unsupported URL: https://example.com/empty")
+
+    monkeypatch.setattr(extraction_module, "extract_video_info", fake_extract)
+
+    def raise_no_media(url):
+        raise webscan_module.WebScanNoMediaError("nothing found")
+
+    monkeypatch.setattr(webscan_module, "fetch_generic_page_media", raise_no_media)
+    resp = client.post("/api/check", json={"url": "https://example.com/empty"}, headers={"X-Language": "en"})
+    assert resp.status_code == 400
+    assert resp.get_json()["error"] == messages_module.text("webscan_no_media", "en")
+
+
+def test_check_link_known_platform_resolver_success_never_tries_webscan(client, monkeypatch):
+    # A named platform resolver that succeeds returns immediately - webscan
+    # (the last branch in the chain) must never even be attempted.
+    def fake_extract(cls):
+        raise yt_dlp.utils.DownloadError("Unable to extract video")
+
+    called = []
+    monkeypatch.setattr(extraction_module, "extract_video_info", fake_extract)
+    monkeypatch.setattr(
+        linkedin_module,
+        "fetch_linkedin_image_post",
+        lambda url: {"title": "A post", "items": [{"kind": "image", "url": "http://cdn/i.jpg", "thumbnail": "http://cdn/i.jpg"}]},
+    )
+    monkeypatch.setattr(webscan_module, "fetch_generic_page_media", lambda url: called.append(url))
+    resp = client.post("/api/check", json={"url": "https://www.linkedin.com/posts/example-post-activity-1"})
+    assert resp.status_code == 200
+    assert not called
+
+
+def test_start_download_generic_webpage_falls_back_to_webscan(client, monkeypatch, tmp_path):
+    monkeypatch.setattr(config, "load_session", lambda: {"path": str(tmp_path), "cookies_path": ""})
+
+    class MockYoutubeDL:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def download(self, urls):
+            raise yt_dlp.utils.DownloadError("Unsupported URL: https://example.com/photo")
+
+    monkeypatch.setattr(yt_dlp, "YoutubeDL", MockYoutubeDL)
+    monkeypatch.setattr(
+        webscan_module,
+        "fetch_generic_page_media",
+        lambda url: {"title": "A Photo", "items": [{"kind": "image", "url": "http://cdn/photo.jpg", "thumbnail": "http://cdn/photo.jpg"}]},
+    )
+    monkeypatch.setattr(download_module, "download_direct_url", lambda cdn_url, output_path, job_id: None)
+
+    resp = client.post("/api/download", json={"url": "https://example.com/photo", "title": "My Photo", "quality": "Best"})
+    assert resp.status_code == 200
+    job_id = resp.get_json()["job_id"]
+    for _ in range(50):
+        if jobs_module.jobs[job_id]["status"] != "running":
+            break
+        time.sleep(0.05)
+    assert jobs_module.jobs[job_id]["status"] == "done"
+    assert jobs_module.jobs[job_id]["filename"].endswith(".jpg")
+
+
+def test_start_batch_download_generic_webpage_picks_each_item(client, monkeypatch, tmp_path):
+    monkeypatch.setattr(config, "load_session", lambda: {"path": str(tmp_path)})
+    monkeypatch.setattr(config, "resolve_save_dir", lambda path: str(tmp_path))
+    monkeypatch.setattr(paths, "get_ffmpeg_path", lambda: "/ff")
+    monkeypatch.setattr(
+        webscan_module,
+        "fetch_generic_page_media",
+        lambda url: {"title": "A Gallery", "items": [
+            {"kind": "image", "url": "http://cdn/1.jpg", "thumbnail": "http://cdn/1.jpg"},
+            {"kind": "image", "url": "http://cdn/2.jpg", "thumbnail": "http://cdn/2.jpg"},
+        ]},
+    )
+
+    downloaded = []
+
+    def fake_download_direct_url(cdn_url, output_path, job_id, on_progress=None):
+        downloaded.append(cdn_url)
+        with open(output_path, "wb") as f:
+            f.write(b"x")
+        if on_progress:
+            on_progress(100)
+
+    monkeypatch.setattr(download_module, "download_direct_url", fake_download_direct_url)
+
+    resp = client.post(
+        "/api/download-batch",
+        json={
+            "url": "https://example.com/gallery",
+            "quality": "Best",
+            "items": [
+                {"title": "A Gallery (1)", "entry_index": 1},
+                {"title": "A Gallery (2)", "entry_index": 2},
+            ],
+        },
+    )
+    job_id = resp.get_json()["job_id"]
+    for _ in range(50):
+        if jobs_module.jobs[job_id]["status"] != "running":
+            break
+        time.sleep(0.05)
+
+    job = jobs_module.jobs[job_id]
+    assert job["status"] == "done"
+    assert job["saved_count"] == 2
+    assert set(downloaded) == {"http://cdn/1.jpg", "http://cdn/2.jpg"}
 
 
 def test_check_link_tiktok_video_post_unaffected(client, monkeypatch):

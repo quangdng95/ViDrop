@@ -37,6 +37,15 @@ browser_cookie3
 # the curl_cffi entry above for why that distinction matters here.
 certifi
 
+# backend/webscan.py's desktop-only generic-website scanner: renders an
+# arbitrary webpage in headless Chromium to list every image/video it shows,
+# as a last resort when no named platform resolver and no yt-dlp extractor
+# can handle the URL. Only the Python driver is pip-installable - the actual
+# browser binary (~150MB) is fetched separately by `playwright install
+# chromium`, run automatically on first use (see webscan._ensure_chromium)
+# or ahead of time by desktop_app.py's startup thread.
+playwright
+
 # Testing (tests/test_server.py)
 pytest
 

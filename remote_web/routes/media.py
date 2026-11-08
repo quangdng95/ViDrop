@@ -13,6 +13,11 @@ rather than imported from it - backend.app is deliberately the one module
 remote_web never depends on (it's the module THIS blueprint replaces), and
 importing a module-level string from it would silently couple this file to
 an internal a future backend/app.py change could rename without warning.
+
+backend/webscan.py's generic-website-media-scan fallback (platform "Link",
+last resort when nothing else can resolve a URL) is deliberately NOT ported
+here: it launches a real headless Chromium per request, which would risk
+taking down this e2-micro VM under concurrent visitors. It is desktop-app-only.
 """
 
 import os

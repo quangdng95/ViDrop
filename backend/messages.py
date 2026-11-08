@@ -80,6 +80,22 @@ _CATALOG = {
         VI: "❌ Lỗi: Không đọc được nội dung bài đăng LinkedIn này. Bài có thể đã bị xoá hoặc ở chế độ riêng tư, hoặc là tài liệu/slide (PDF) mà các trang không đọc được. ViDrop hỗ trợ bài LinkedIn công khai dạng video, ảnh và tài liệu.",
         EN: "❌ Error: Couldn't read this LinkedIn post. It may have been removed or be private, or it is a document/slide (PDF) whose pages couldn't be read. ViDrop supports public LinkedIn video, image and document posts.",
     },
+    # backend/webscan.py's desktop-only fallback for a page matching no known
+    # platform: a real headless browser renders the page and lists every
+    # image/video it finds. These three cover that resolver's own failure
+    # modes, distinct from the generic "extract_failed" message above.
+    "webscan_no_media": {
+        VI: "❌ Lỗi: Đã mở trang này nhưng không tìm thấy ảnh hoặc video nào để tải. Một số trình phát video (phát trực tuyến HLS/DASH) không thể tải bằng cách này.",
+        EN: "❌ Error: Opened this page but found no image or video worth downloading. Some video players (HLS/DASH streaming) can't be downloaded this way.",
+    },
+    "webscan_unavailable": {
+        VI: "❌ Lỗi: Không thể khởi động trình duyệt để quét trang này (có thể đang tải engine trình duyệt lần đầu hoặc thiếu kết nối mạng). Vui lòng thử lại sau ít phút.",
+        EN: "❌ Error: Couldn't start the browser engine needed to scan this page (it may still be downloading for the first time, or there's no network). Please try again in a few minutes.",
+    },
+    "webscan_timeout": {
+        VI: "❌ Lỗi: Trang này tải quá lâu để quét. Vui lòng thử lại hoặc kiểm tra kết nối mạng.",
+        EN: "❌ Error: This page took too long to load while scanning it. Please try again or check your network connection.",
+    },
     "network_unreachable": {
         VI: "❌ Lỗi: Không thể kết nối mạng để xử lý liên kết này. Vui lòng kiểm tra kết nối Internet (hoặc tường lửa/VPN) rồi thử lại.",
         EN: "❌ Error: Couldn't connect to the network to process this link. Please check your Internet connection (or firewall/VPN) and try again.",

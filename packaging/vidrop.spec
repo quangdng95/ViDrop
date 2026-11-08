@@ -65,8 +65,12 @@ hiddenimports = []
 # native libcurl-impersonate binary yt-dlp uses to impersonate a real
 # browser's TLS/HTTP fingerprint (see requirements.txt) - without collecting
 # it explicitly the frozen app would silently lack impersonation even though
-# curl_cffi is installed at build time.
-for pkg in ("yt_dlp", "webview", "browser_cookie3", "curl_cffi"):
+# curl_cffi is installed at build time. playwright (backend/webscan.py) ships
+# its own embedded Node-based driver binary alongside the Python package -
+# collect_all() picks that up too, but NOT the actual Chromium browser engine:
+# that has no pip package at all and is fetched separately at first use by
+# `playwright install chromium` (see requirements.txt and webscan._ensure_chromium).
+for pkg in ("yt_dlp", "webview", "browser_cookie3", "curl_cffi", "playwright"):
     pkg_datas, pkg_binaries, pkg_hidden = collect_all(pkg)
     datas += pkg_datas
     binaries += pkg_binaries
